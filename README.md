@@ -1,11 +1,17 @@
-# SpeakEasy: Roleplay Emote Wheel & Lines
+# SpeakEasy: Emote Wheel, Quick Chat & Roleplay Lines
 
-SpeakEasy is a World of Warcraft roleplay addon. Hold a key to open an emote wheel around your cursor, or press one action bar button to say a random line from a scene you've written. It's for roleplayers who want their character to talk and emote without typing the same lines over and over.
+SpeakEasy is a World of Warcraft addon that brings your character to life. Hold a key to open a wheel of emotes and messages around your cursor, point at one and let go. Or drag a scene onto your action bar, and each press says a different line you've written for it.
+
+## Who it's for
+
+- **Roleplayers**: give your character a voice of their own, with lines for every situation that never come out the same twice in a row, and reactions when you enter combat, cast a spell or sit down to eat.
+- **Groups and guilds**: put your callouts on one wheel instead of five macros. "Pulling in 3", "Interrupt next", "Need mana" are a flick of the mouse away, sent to party, raid or instance chat.
+- **Everyone else**: wave at a passing player, cheer a friend or start a train without typing a thing. A few lines in a dungeon go a long way to making a run feel alive.
 
 ## What it does
 
 - **Emote wheel**: hold a key, point at a slot and let go. Each slot holds a scene or a single emote, and you can have up to 9 pages of 8.
-- **Scenes**: write a pool of lines for a situation, like Greeting, Combat or Tavern, and choose the channel: Say, Yell, Emote, Party, Raid, Instance, or Auto.
+- **Scenes**: write a pool of lines for a situation, like Greeting, Combat, Tavern or your group's callouts, and choose the channel: Say, Yell, Emote, Party, Raid, Instance, or Auto.
 - **Lines that don't repeat**: every line in a scene gets said once before any comes round again, and never the same one twice in a row.
 - **Bar buttons**: drag a scene onto your action bar and pick any icon for it. Each press says the next line.
 - **Variables**: drop in your target's name, the zone, the time of day and more from a menu while you write.
@@ -24,6 +30,10 @@ SpeakEasy is a World of Warcraft roleplay addon. Hold a key to open an emote whe
 ### Which versions of WoW does it work on?
 
 It's built for Retail, Classic Era, Mists of Pandaria Classic, Anniversary and WoW Forever, but so far it has only been tested on Retail. If you play on one of the others, I'd really appreciate hearing whether it works for you.
+
+### Can I use it for quick callouts in dungeons and raids?
+
+Yes. Make a scene with one line, set its channel to Party, Raid, Instance or Auto, and put it on the wheel. Auto picks your group's chat for you.
 
 ### Can my character speak automatically in combat?
 
