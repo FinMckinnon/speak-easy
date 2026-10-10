@@ -1,0 +1,8 @@
+<Bindings>
+    <Binding name="SPEAKEASY_SPEAK" header="SPEAKEASY" category="ADDONS">
+        SpeakEasy_Speak()
+    </Binding>
+    <Binding name="SPEAKEASY_WHEEL" runOnUp="true" category="ADDONS">
+        SpeakEasy_Wheel(keystate)
+    </Binding>
+</Bindings>

@@ -1,0 +1,24 @@
+name: Tests
+
+on:
+  push:
+  pull_request:
+  workflow_call:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - run: npm install --no-save fengari
+
+      # The Lua tests print their result rather than setting an exit code.
+      - name: Saved data, rotation, triggers and macros
+        run: node tests/run.js tests/core.lua . | tee core.log && grep -q "ALL PASSED" core.log
+
+      - name: Window and editors
+        run: node tests/run.js tests/ui.lua . | tee ui.log && grep -q "ALL PASSED" ui.log
+
+      - name: Layout with the real AceGUI (overlap, overflow, clipped text)
+        run: node tests/run.js tests/layout.lua . | tee layout.log && grep -q "ALL PASSED" layout.log

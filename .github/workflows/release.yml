@@ -1,0 +1,41 @@
+name: Release zip
+
+on:
+  release:
+    types:
+      - published
+
+permissions:
+  contents: write
+
+jobs:
+  test:
+    uses: ./.github/workflows/tests.yml
+
+  build:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # v4.0, 4.0 and 4.0-beta1 all match "## Version: 4.0".
+      - name: Check the tag matches the .toc version
+        run: |
+          version="${TAG#v}"
+          grep -qx "## Version: ${version%%-*}" SpeakEasy.toc
+        env:
+          TAG: ${{ github.event.release.tag_name }}
+
+      - name: Build zip
+        run: |
+          # Copy only the files the game loads, plus the licence and readme.
+          # Tests, editor settings and workflows stay out of the release.
+          mkdir SpeakEasy
+          cp -r SpeakEasy.toc Bindings.xml Core UI Libs Locale Media LICENSE README.md SpeakEasy/
+          zip -r SpeakEasy.zip SpeakEasy
+
+      - name: Attach zip to the release
+        run: gh release upload "$TAG" SpeakEasy.zip --clobber
+        env:
+          TAG: ${{ github.event.release.tag_name }}
+          GH_TOKEN: ${{ github.token }}

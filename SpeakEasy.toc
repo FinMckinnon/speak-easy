@@ -1,0 +1,26 @@
+## Interface: 120100, 11509, 50504, 38002, 20506, 16001
+## Title: SpeakEasy: Roleplay Emote Wheel & Lines
+## Notes: Roleplay emote wheel on one key, and scenes of RP lines said at random from one button.
+## Author: FinLaFin
+## Version: 1.0.0
+## IconTexture: Interface\Icons\INV_Misc_Note_01
+## SavedVariables: SpeakEasyDB
+## SavedVariablesPerCharacter: SpeakEasyCharDB
+
+Libs/LibStub/LibStub.lua
+Libs/AceGUI-3.0/AceGUI-3.0.xml
+
+Locale/SpeakEasy_enGB.lua
+
+Core/SpeakEasy_Util.lua
+Core/SpeakEasy_Db.lua
+Core/SpeakEasy_Play.lua
+Core/SpeakEasy_Macro.lua
+Core/SpeakEasy_Prime.lua
+Core/SpeakEasy_Triggers.lua
+
+UI/SpeakEasy_Style.lua
+UI/SpeakEasy_Widgets.lua
+UI/SpeakEasy_Editors.lua
+UI/SpeakEasy_Window.lua
+UI/SpeakEasy_Wheel.lua
