@@ -60,7 +60,7 @@ Retail keeps your health hidden from addons, so it can't tell when you're low. T
 
 ## Install
 
-Download `SpeakEasy.zip` and put the `SpeakEasy` folder in `World of Warcraft\_retail_\Interface\AddOns`, or the matching folder for your version, such as `_classic_era_`.
+Install it with the CurseForge app, or download `SpeakEasy.zip` from the Releases page of this repository and put the `SpeakEasy` folder in `World of Warcraft\_retail_\Interface\AddOns`, or the matching folder for your version, such as `_classic_era_`.
 
 Ideas and bug reports are welcome, so let me know what you'd like it to do.
 
