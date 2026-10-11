@@ -328,12 +328,23 @@ check(#M.chat == chatBefore and #M.sent == sentBefore, "secret health skipped qu
 check(L.Play.Resolve("hp {healthPercent}") == "hp", "secret health leaves {healthPercent} blank")
 M.units.player.health = 100
 
-Triggers({ { event = "SPELL_CAST", sceneId = "growl", options = { spell = "fireball" } } })
+Triggers({ { event = "SPELL_CAST", sceneId = "growl", options = { spells = { { spell = "fireball" } } } } })
 sentBefore = #M.sent
 M.Fire("UNIT_SPELLCAST_SUCCEEDED", "player", "guid", 999)
 check(#M.sent == sentBefore, "other spells ignored")
 M.Fire("UNIT_SPELLCAST_SUCCEEDED", "player", "guid", 133)
 check(#M.sent == sentBefore + 1, "named spell fires, any case")
+
+Triggers({ { event = "SPELL_CAST", sceneId = "growl", options = { spells = { { spell = "Flash of Light" }, { spell = "Fireball" } } } } })
+sentBefore = #M.sent
+M.Fire("UNIT_SPELLCAST_SUCCEEDED", "player", "guid", 133)
+check(#M.sent == sentBefore + 1, "any spell on the trigger's list fires it")
+
+SpeakEasyDB.triggers = { { event = "SPELL_CAST", sceneId = "growl", options = { spell = "Fireball", item = "Wand" } } }
+L.Db.Load()
+local converted = SpeakEasyDB.triggers[1].options
+check(#converted.spells == 1 and converted.spells[1].spell == "Fireball" and converted.spells[1].item == "Wand" and converted.spell == nil,
+    "an old single spell trigger becomes a list of one")
 chatBefore = #M.chat
 M.Fire("UNIT_SPELLCAST_SUCCEEDED", "player", "guid", M.Secret())
 check(#M.chat == chatBefore, "secret spell id skipped quietly")
@@ -344,7 +355,7 @@ check(L.Compat.SpellOrItem("|Hspell:133:0|h[Fireball]|h") == "Fireball", "a spel
 check(L.Compat.SpellOrItem("Flash of Light") == "Flash of Light", "a typed spell name is kept")
 
 NewScene("Snack", { "Mmm, {itemName}." }, { channel = "EMOTE", cooldown = 0 })
-Triggers({ { event = "SPELL_CAST", sceneId = "snack", options = { spell = "Food", item = "Haunch of Meat" } } })
+Triggers({ { event = "SPELL_CAST", sceneId = "snack", options = { spells = { { spell = "Food", item = "Haunch of Meat" } } } } })
 M.spells[433] = "Food"
 M.Fire("UNIT_SPELLCAST_SUCCEEDED", "player", "guid", 433)
 check(LastSent().text == "Mmm, Haunch of Meat.", "eating the item fires its trigger and fills {itemName}")
@@ -352,11 +363,11 @@ check(LastSent().text == "Mmm, Haunch of Meat.", "eating the item fires its trig
 print("Trigger debugging")
 SlashCmdList.SPEAKEASY("debug")
 check(L.Triggers.debug, "/speakeasy debug turns debugging on")
-Triggers({ { event = "SPELL_CAST", sceneId = "growl", options = { spell = "Fireball" }, chance = 0 } })
+Triggers({ { event = "SPELL_CAST", sceneId = "growl", options = { spells = { { spell = "Fireball" } } }, chance = 0 } })
 chatBefore = #M.chat
 M.Fire("UNIT_SPELLCAST_SUCCEEDED", "player", "guid", 133)
 check(ChatHas("1 trigger(s) match", chatBefore + 1) and ChatHas("chance roll", chatBefore + 1), "debug shows a missed chance roll")
-Triggers({ { event = "SPELL_CAST", sceneId = "shout", options = { spell = "Fireball" } } })
+Triggers({ { event = "SPELL_CAST", sceneId = "shout", options = { spells = { { spell = "Fireball" } } } } })
 chatBefore = #M.chat
 M.Fire("UNIT_SPELLCAST_SUCCEEDED", "player", "guid", 133)
 check(ChatHas("wait for your next key press", chatBefore + 1), "debug explains a Say line is waiting for a key")
@@ -373,6 +384,44 @@ check(ChatHas("triggers are muted", chatBefore + 1), "debug explains muted trigg
 SpeakEasyDB.settings.triggersMuted = false
 SlashCmdList.SPEAKEASY("debug")
 check(not L.Triggers.debug, "/speakeasy debug again turns it off")
+
+Triggers({ { event = "EAT_DRINK", sceneId = "growl" } })
+sentBefore = #M.sent
+M.Fire("UNIT_SPELLCAST_SUCCEEDED", "player", "guid", 133)
+check(#M.sent == sentBefore, "eat or drink ignores other spells")
+M.Fire("UNIT_SPELLCAST_SUCCEEDED", "player", "guid", 430)
+check(#M.sent == sentBefore + 1, "drinking fires the eat or drink trigger")
+M.now = M.now + 100
+M.Fire("UNIT_SPELLCAST_SUCCEEDED", "player", "guid", 433)
+check(#M.sent == sentBefore + 2, "eating fires it too")
+
+NewScene("Meal", { "Mmm, {itemName}." }, { channel = "EMOTE", cooldown = 0 })
+Triggers({ { event = "EAT_DRINK", sceneId = "meal" } })
+UseAction(5)
+M.Fire("UNIT_SPELLCAST_SUCCEEDED", "player", "guid", 433)
+check(LastSent().text == "Mmm, Haunch of Meat.", "{itemName} is the food used from the action bar")
+M.now = M.now + 100
+C_Container.UseContainerItem(0, 1)
+M.Fire("UNIT_SPELLCAST_SUCCEEDED", "player", "guid", 430)
+check(LastSent().text == "Mmm, Conjured Water.", "{itemName} is the drink clicked in the bags")
+M.now = M.now + 100
+UseItemByName("Haunch of Meat")
+M.Fire("UNIT_SPELLCAST_SUCCEEDED", "player", "guid", 433)
+check(LastSent().text == "Mmm, Haunch of Meat.", "{itemName} is the item used with /use")
+M.now = M.now + 100
+M.Fire("UNIT_SPELLCAST_SUCCEEDED", "player", "guid", 433)
+check(LastSent().text == "Mmm, .", "{itemName} is blank when no item use was seen recently")
+
+-- A trigger switched from an item to eat or drink, as saved before the fix.
+SpeakEasyDB.triggers = { { event = "EAT_DRINK", sceneId = "meal", chance = 100, cooldown = 0, enabled = true,
+    options = { spell = "Food", item = "Leg Meat" } } }
+L.Db.Load()
+check(SpeakEasyDB.triggers[1].options.item == nil and SpeakEasyDB.triggers[1].options.spell == nil,
+    "a leftover item is dropped from a non spell trigger when loading")
+M.now = M.now + 100
+C_Container.UseContainerItem(0, 1)
+M.Fire("UNIT_SPELLCAST_SUCCEEDED", "player", "guid", 430)
+check(LastSent().text == "Mmm, Conjured Water.", "eat or drink names what you drank, not an old item")
 
 Triggers({ { event = "MOUNT", sceneId = "growl" } })
 sentBefore = #M.sent

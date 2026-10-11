@@ -355,59 +355,19 @@ end
 
 -- input: a parent, a label, the chosen key, a function returning the full
 --        list and its order, a width, and a change callback
--- output: the dropdown
--- Adds a dropdown that builds its full list only while it is in use.
-function L.UI.LazySelect(parent, label, value, source, width, onChange)
-    -- AceGUI builds one widget per entry the moment a list is set, so a page of
-    -- emote pickers would build thousands. This dropdown holds only its current
-    -- choice until the mouse is over it, and lets the rest go again once it
-    -- closes or the mouse leaves without opening it.
-    local current, filled = value, false
-    local widget = L.UI.Select(parent, label, nil, {}, {}, width, function(choice)
-        current = choice
-        onChange(choice)
-    end)
-
-    -- input: true for the full list, false for the current choice alone
-    -- output: nothing
-    -- Fills the dropdown with the full list, or with only the current choice.
-    local function Fill(full)
-        local list, order = source()
-        local text = list[current] or tostring(current)
-        if not full then
-            widget:SetList({ [current] = text }, { current })
-        elseif list[current] then
-            widget:SetList(list, order)
-        else
-            -- Keep the current choice listed when the source lacks it.
-            local extendedList, extendedOrder = { [current] = text }, { current }
-            for _, key in ipairs(order) do
-                extendedList[key] = list[key]
-                extendedOrder[#extendedOrder + 1] = key
-            end
-
-            widget:SetList(extendedList, extendedOrder)
-        end
-
-        widget:SetValue(current)
-        filled = full
-    end
-
-    widget:SetCallback("OnEnter", Safe(function()
-        if not filled then
-            Fill(true)
-        end
+-- output: the picker
+-- Adds a searchable picker: click it, type to filter, pick a row.
+function L.UI.Picker(parent, label, value, source, width, onChange)
+    local widget = AceGUI:Create("SpeakEasyPicker")
+    widget:SetLabel(label)
+    widget:SetSource(source)
+    local list = source()
+    widget:SetValue(value, list[value])
+    Size(widget, width)
+    widget:SetCallback("OnValueChanged", Safe(function(_, _, key)
+        onChange(key)
     end))
-    widget:SetCallback("OnLeave", Safe(function()
-        if filled and not widget.open then
-            Fill(false)
-        end
-    end))
-    widget:SetCallback("OnClosed", Safe(function()
-        Fill(false)
-    end))
-
-    Fill(false)
+    parent:AddChild(widget)
 
     return widget
 end
@@ -431,7 +391,7 @@ end
 -- output: the dropdown
 -- Adds an emote picker listing "none" and every emote.
 function L.UI.EmoteSelect(parent, label, value, width, onChange)
-    return L.UI.LazySelect(parent, label, value or NO_EMOTE, EmoteChoices, width, function(token)
+    return L.UI.Picker(parent, label, value or NO_EMOTE, EmoteChoices, width, function(token)
         onChange(token ~= NO_EMOTE and token or nil)
     end)
 end

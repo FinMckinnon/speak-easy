@@ -70,6 +70,7 @@ local function Surface(frame, fill, edge)
     frame:SetBackdropColor(fill[1], fill[2], fill[3], fill[4])
     frame:SetBackdropBorderColor(edge[1], edge[2], edge[3], edge[4])
 end
+L.Style.Surface = Surface
 
 -- input: a texture and a colour
 -- output: nothing
@@ -872,6 +873,397 @@ do
             widget:SetToggle(not widget.toggleValue)
             widget:Fire("OnToggle", widget.toggleValue)
         end)
+
+        return AceGUI:RegisterAsWidget(widget)
+    end
+
+    AceGUI:RegisterWidgetType(Type, Constructor, Version)
+end
+
+-- Searchable picker: a field like a dropdown's that opens a list with a
+-- search box at its top, filtering as you type. Built for long lists such as
+-- every emote: the list only ever has the rows that fit, reused as you scroll
+-- or search, so it opens at once however long the list is.
+do
+    local Type, Version = "SpeakEasyPicker", 1
+    local ROWS = 12
+    local ROW_HEIGHT = 20
+    local SEARCH_HEIGHT = 24
+    local INSET = 6
+    local FIELD_HEIGHT = 26
+    local LABEL_HEIGHT = 18
+    local SCROLL_STEP = 3
+    -- AceGUI's Flow layout lines a row up on each widget's alignment offset;
+    -- the dropdown's is 26, so the picker uses the same to sit level with it.
+    local ALIGN = 26
+
+    -- One list, shared by every picker, since only one is open at a time.
+    local popup
+
+    -- input: nothing
+    -- output: nothing
+    -- Closes the list, leaving the picker's value as it was.
+    local function Close()
+        if popup then
+            popup.owner = nil
+            popup.search:ClearFocus()
+            popup:Hide()
+        end
+    end
+
+    -- input: nothing
+    -- output: nothing
+    -- Shows the rows for the matches from the current scroll position.
+    local function Draw()
+        local owner = popup.owner
+        local keys = popup.keys
+        local maxOffset = math.max(0, #keys - ROWS)
+        popup.offset = math.max(0, math.min(popup.offset, maxOffset))
+
+        for index, row in ipairs(popup.rows) do
+            local key = keys[popup.offset + index]
+            row.key = key
+            if key then
+                row.text:SetText(owner.list[key])
+                local colour = key == owner.value and COLOURS.accent or COLOURS.text
+                row.text:SetTextColor(colour[1], colour[2], colour[3])
+                row:Show()
+            else
+                row:Hide()
+            end
+        end
+
+        popup.empty:SetShown(#keys == 0)
+
+        -- A thin bar on the right shows where in a long list you are.
+        local listHeight = ROWS * ROW_HEIGHT
+        if #keys > ROWS then
+            local thumbHeight = math.max(12, listHeight * ROWS / #keys)
+            popup.thumb:SetHeight(thumbHeight)
+            popup.thumb:ClearAllPoints()
+            popup.thumb:SetPoint("TOPRIGHT", popup.list, "TOPRIGHT", 0,
+                -(listHeight - thumbHeight) * popup.offset / maxOffset)
+            popup.thumb:Show()
+        else
+            popup.thumb:Hide()
+        end
+    end
+
+    -- input: nothing
+    -- output: nothing
+    -- Keeps only the entries whose text holds what is typed in the search box.
+    local function Filter()
+        local owner = popup.owner
+        local query = strtrim(popup.search:GetText() or ""):lower()
+        local keys = {}
+        for _, key in ipairs(owner.order) do
+            local text = tostring(owner.list[key] or key)
+            if query == "" or text:lower():find(query, 1, true) then
+                keys[#keys + 1] = key
+            end
+        end
+
+        popup.keys = keys
+        popup.placeholder:SetShown(query == "")
+        popup.offset = 0
+        Draw()
+    end
+
+    -- input: the chosen key
+    -- output: nothing
+    -- Gives the picker its new value, closes the list and reports the choice.
+    local function Choose(key)
+        local owner = popup.owner
+        if not owner or key == nil then
+            return
+        end
+
+        Close()
+        owner:SetValue(key, owner.list[key])
+        owner:Fire("OnValueChanged", key)
+    end
+
+    -- input: nothing
+    -- output: the shared list frame, built on first use
+    -- Builds the search box, the reusable rows and the scroll bar.
+    local function Popup()
+        if popup then
+            return popup
+        end
+
+        popup = CreateFrame("Frame", "SpeakEasyPickerList", UIParent, BACKDROP)
+        popup:SetFrameStrata("FULLSCREEN_DIALOG")
+        popup:SetClampedToScreen(true)
+        popup:EnableMouse(true)
+        popup:EnableMouseWheel(true)
+        popup:SetHeight(INSET * 3 + SEARCH_HEIGHT + ROWS * ROW_HEIGHT)
+        Surface(popup, COLOURS.window, COLOURS.windowEdge)
+        popup:Hide()
+
+        local search = CreateFrame("EditBox", nil, popup, BACKDROP)
+        search:SetAutoFocus(false)
+        search:SetFontObject(L.Style.Body)
+        search:SetTextInsets(8, 8, 0, 0)
+        search:SetHeight(SEARCH_HEIGHT)
+        search:SetPoint("TOPLEFT", INSET, -INSET)
+        search:SetPoint("TOPRIGHT", -INSET, -INSET)
+        Surface(search, { 0, 0, 0, 0.4 }, COLOURS.cardEdge)
+        search:SetScript("OnTextChanged", function()
+            if popup.owner then
+                Filter()
+            end
+        end)
+        search:SetScript("OnEnterPressed", function()
+            Choose(popup.keys[1])
+        end)
+        search:SetScript("OnEscapePressed", Close)
+        popup.search = search
+
+        popup.placeholder = search:CreateFontString(nil, "OVERLAY")
+        popup.placeholder:SetFontObject(L.Style.Caption)
+        popup.placeholder:SetPoint("LEFT", 8, 0)
+        popup.placeholder:SetText(L.Text.PICKER_SEARCH)
+
+        popup.list = CreateFrame("Frame", nil, popup)
+        popup.list:SetPoint("TOPLEFT", search, "BOTTOMLEFT", 0, -INSET)
+        popup.list:SetPoint("TOPRIGHT", search, "BOTTOMRIGHT", 0, -INSET)
+        popup.list:SetHeight(ROWS * ROW_HEIGHT)
+
+        popup.rows = {}
+        for index = 1, ROWS do
+            local row = CreateFrame("Button", nil, popup.list)
+            row:SetHeight(ROW_HEIGHT)
+            row:SetPoint("TOPLEFT", 0, -(index - 1) * ROW_HEIGHT)
+            row:SetPoint("RIGHT", -6, 0)
+            row.fill = row:CreateTexture(nil, "BACKGROUND")
+            row.fill:SetAllPoints()
+            Paint(row.fill, { 0, 0, 0, 0 })
+            row.text = row:CreateFontString(nil, "OVERLAY")
+            row.text:SetFontObject(L.Style.Body)
+            row.text:SetPoint("LEFT", 8, 0)
+            row.text:SetPoint("RIGHT", -8, 0)
+            row.text:SetJustifyH("LEFT")
+            row.text:SetWordWrap(false)
+            row:SetScript("OnEnter", function(self)
+                Paint(self.fill, COLOURS.rowHover)
+            end)
+            row:SetScript("OnLeave", function(self)
+                Paint(self.fill, { 0, 0, 0, 0 })
+            end)
+            row:SetScript("OnClick", function(self)
+                Choose(self.key)
+            end)
+            popup.rows[index] = row
+        end
+
+        popup.empty = popup.list:CreateFontString(nil, "OVERLAY")
+        popup.empty:SetFontObject(L.Style.Caption)
+        popup.empty:SetPoint("TOPLEFT", 8, -4)
+        popup.empty:SetText(L.Text.PICKER_NONE)
+
+        popup.thumb = popup.list:CreateTexture(nil, "OVERLAY")
+        popup.thumb:SetWidth(3)
+        Paint(popup.thumb, COLOURS.fillPressed)
+
+        popup:SetScript("OnMouseWheel", function(_, delta)
+            popup.offset = popup.offset - delta * SCROLL_STEP
+            Draw()
+        end)
+
+        -- Clicking anywhere else closes the list, as menus do in the game.
+        pcall(popup.RegisterEvent, popup, "GLOBAL_MOUSE_DOWN")
+        popup:SetScript("OnEvent", function()
+            local owner = popup.owner
+            if popup:IsShown() and not popup:IsMouseOver() and not (owner and owner.field:IsMouseOver()) then
+                Close()
+            end
+        end)
+
+        return popup
+    end
+
+    -- input: a picker
+    -- output: nothing
+    -- Opens the list under the picker, scrolled to its current choice, with the search box ready.
+    local function Open(widget)
+        Popup()
+        if widget.source then
+            widget.list, widget.order = widget.source()
+        end
+
+        popup.owner = widget
+        popup:ClearAllPoints()
+        popup:SetPoint("TOPLEFT", widget.field, "BOTTOMLEFT", 0, -2)
+        popup:SetWidth(math.max(widget.field:GetWidth(), 220))
+        popup.search:SetText("")
+        Filter()
+
+        for index, key in ipairs(popup.keys) do
+            if key == widget.value then
+                popup.offset = index - math.floor(ROWS / 2)
+                break
+            end
+        end
+
+        Draw()
+        popup:Show()
+        popup.search:SetFocus()
+    end
+
+    local methods = {
+        -- input: nothing
+        -- output: nothing
+        -- Resets the picker to empty for a new use.
+        OnAcquire = function(self)
+            self:SetHeight(LABEL_HEIGHT + FIELD_HEIGHT)
+            self:SetWidth(200)
+            self:SetLabel("")
+            self.list, self.order, self.source = {}, {}, nil
+            self:SetValue(nil, "")
+        end,
+
+        -- input: nothing
+        -- output: nothing
+        -- Closes the list when the picker goes away while it is open.
+        OnRelease = function(self)
+            if popup and popup.owner == self then
+                Close()
+            end
+        end,
+
+        -- input: the label text
+        -- output: nothing
+        -- Sets the quiet label above the field.
+        SetLabel = function(self, text)
+            self.label:SetText(text or "")
+        end,
+
+        -- input: a function returning the list of key to text and the keys in order
+        -- output: nothing
+        -- Sets where the choices come from; they are read each time the list opens.
+        SetSource = function(self, source)
+            self.source = source
+        end,
+
+        -- input: the chosen key, and the text to show for it
+        -- output: nothing
+        -- Shows the choice in the field.
+        SetValue = function(self, key, text)
+            self.value = key
+            self.text:SetText(text or (key ~= nil and tostring(key)) or "")
+        end,
+    }
+
+    -- input: nothing
+    -- output: the picker widget
+    -- Builds the label, and the field that opens and closes the list.
+    local function Constructor()
+        local frame = CreateFrame("Frame", nil, UIParent)
+        frame:Hide()
+
+        local label = frame:CreateFontString(nil, "OVERLAY")
+        label:SetFontObject(L.Style.Caption)
+        label:SetPoint("TOPLEFT", 2, -2)
+        label:SetJustifyH("LEFT")
+
+        local field = CreateFrame("Button", nil, frame, BACKDROP)
+        field:SetPoint("TOPLEFT", 0, -LABEL_HEIGHT)
+        field:SetPoint("RIGHT")
+        field:SetHeight(FIELD_HEIGHT)
+        Surface(field, { 0, 0, 0, 0.35 }, COLOURS.cardEdge)
+
+        local text = field:CreateFontString(nil, "OVERLAY")
+        text:SetFontObject(L.Style.Body)
+        text:SetPoint("LEFT", 8, 0)
+        text:SetPoint("RIGHT", -22, 0)
+        text:SetJustifyH("LEFT")
+        text:SetWordWrap(false)
+
+        local arrow = field:CreateTexture(nil, "OVERLAY")
+        arrow:SetTexture("Interface\\Buttons\\UI-ScrollBar-ScrollDownButton-Up")
+        arrow:SetSize(20, 20)
+        arrow:SetPoint("RIGHT", -2, 0)
+
+        local widget = { frame = frame, label = label, field = field, text = text, alignoffset = ALIGN, type = Type }
+        for name, fn in pairs(methods) do
+            widget[name] = fn
+        end
+
+        field:SetScript("OnEnter", function()
+            local quiet = COLOURS.secondary
+            field:SetBackdropBorderColor(quiet[1], quiet[2], quiet[3], 0.6)
+        end)
+        field:SetScript("OnLeave", function()
+            local edge = COLOURS.cardEdge
+            field:SetBackdropBorderColor(edge[1], edge[2], edge[3], edge[4])
+        end)
+        field:SetScript("OnClick", function()
+            AceGUI:ClearFocus()
+            if popup and popup.owner == widget then
+                Close()
+            else
+                Open(widget)
+            end
+        end)
+        frame:SetScript("OnHide", function()
+            if popup and popup.owner == widget then
+                Close()
+            end
+        end)
+
+        return AceGUI:RegisterAsWidget(widget)
+    end
+
+    AceGUI:RegisterWidgetType(Type, Constructor, Version)
+end
+
+-- Ring picture: the wheel's ring, centred in a box taller than the pickers
+-- around it, lined up so its centre sits level with their fields. It sits in
+-- the middle of the Wheel tab's compass of slot pickers.
+do
+    local Type, Version = "SpeakEasyRing", 1
+    local HEIGHT = 74
+    local SIZE = 64
+
+    -- AceGUI's Flow layout only makes a row tall enough when a widget's
+    -- alignment line is at its middle, so the box is aligned there. A picker's
+    -- field centre is 5 pixels below its alignment line, so the picture sits
+    -- 5 pixels below the box's middle, level with the fields beside it.
+    local ALIGN = HEIGHT / 2
+    local FIELD_DROP = 5
+
+    local methods = {
+        -- input: nothing
+        -- output: nothing
+        -- Sets the fixed height for a new use.
+        OnAcquire = function(self)
+            self:SetHeight(HEIGHT)
+            self:SetWidth(SIZE)
+        end,
+
+        -- input: a texture path
+        -- output: nothing
+        -- Sets the picture shown in the middle of the box.
+        SetImage = function(self, texture)
+            self.image:SetTexture(texture)
+        end,
+    }
+
+    -- input: nothing
+    -- output: the ring widget
+    -- Builds the box and the picture centred in it.
+    local function Constructor()
+        local frame = CreateFrame("Frame", nil, UIParent)
+        frame:Hide()
+
+        local image = frame:CreateTexture(nil, "ARTWORK")
+        image:SetSize(SIZE, SIZE)
+        image:SetPoint("CENTER", 0, -FIELD_DROP)
+
+        local widget = { frame = frame, image = image, alignoffset = ALIGN, type = Type }
+        for name, fn in pairs(methods) do
+            widget[name] = fn
+        end
 
         return AceGUI:RegisterAsWidget(widget)
     end

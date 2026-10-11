@@ -12,6 +12,7 @@ L.Wheel = {}
 local SLOTS = L.Db.WHEEL_SLOTS
 local MEDIA = "Interface\\AddOns\\" .. ADDON .. "\\Media\\"
 L.Wheel.RING_TEXTURE = MEDIA .. "wheel_ring"
+L.Wheel.GLOW_TEXTURE = MEDIA .. "wheel_glow"
 
 -- The textures are 256 pixels with the ring between radius 56 and 126.
 -- Sizes are at wheel size 1; the size setting scales the whole frame.
@@ -177,7 +178,7 @@ local function Build()
     frame.ring:SetAllPoints()
 
     frame.glow = frame:CreateTexture(nil, "BORDER")
-    frame.glow:SetTexture(MEDIA .. "wheel_glow")
+    frame.glow:SetTexture(L.Wheel.GLOW_TEXTURE)
     frame.glow:SetAllPoints()
     frame.glow:SetBlendMode("ADD")
 

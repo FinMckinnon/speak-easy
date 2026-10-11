@@ -113,6 +113,8 @@ IsInRaid = function() return M.raid end
 IsMounted = function() return M.mounted end
 IsResting = function() return M.resting end
 InCombatLockdown = function() return M.combat end
+M.spells[433] = "Food"
+M.spells[430] = "Drink"
 M.spells[853] = "Hammer of Justice"
 M.spells[24275] = "Hammer of Wrath"
 M.spells[2812] = "Denounce"
@@ -122,6 +124,15 @@ debugprofilestop = function() return 0 end
 C_Spell = { GetSpellName = function(id) return M.spells[id] end, GetSpellTexture = function(spell) return M.spellIcons[spell] end }
 M.itemSpells = { [2287] = "Food", ["Haunch of Meat"] = "Food" }
 C_Item = { GetItemSpell = function(item) return M.itemSpells[item] end }
+-- Using items: from the action bar, the bags and /use.
+M.actions = { [5] = { "item", 2287 } }
+M.bags = { [0] = { [1] = "|cffffffff|Hitem:2288::::|h[Conjured Water]|h|r" } }
+M.itemNames = { [2287] = "Haunch of Meat", [2288] = "Conjured Water" }
+GetActionInfo = function(slot) local a = M.actions[slot]; if a then return a[1], a[2] end end
+UseAction = function() end
+UseItemByName = function() end
+C_Container = { UseContainerItem = function() end, GetContainerItemLink = function(bag, slot) return M.bags[bag] and M.bags[bag][slot] end }
+C_Item.GetItemNameByID = function(id) return M.itemNames[id] end
 GetMacroIcons = function(t) for _, id in ipairs({ 134400, 132147, 136243, 135432 }) do t[#t + 1] = id end end
 GetMacroItemIcons = function(t) t[#t + 1] = "INV_Misc_Food_15" end
 

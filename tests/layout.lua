@@ -12,7 +12,7 @@ L.Db.SaveLine(combat, nil, { text = "By the Light, I will not let {targetName} w
 L.Db.SaveLine(combat, nil, { text = "", emote = "ROAR" })
 L.Db.SetLineEnabled(combat, 2, false)
 L.Db.AddScene("An Unusually Long Scene Name")
-L.Db.SaveTrigger(nil, { event = "SPELL_CAST", sceneId = "combat", chance = 30, cooldown = 60, enabled = true, options = { spell = "Flash of Light" } })
+L.Db.SaveTrigger(nil, { event = "SPELL_CAST", sceneId = "combat", chance = 30, cooldown = 60, enabled = true, options = { spells = { { spell = "Flash of Light" }, { spell = "Holy Light" }, { spell = "Food", item = "Haunch of Meat" } } } })
 L.Db.SaveTrigger(nil, { event = "LOW_HEALTH", sceneId = "tavern", chance = 100, cooldown = 600, enabled = false, options = { threshold = 30 } })
 L.Db.SetWheelPageCount(3)
 L.Db.SetWheelSlot(1, 2, "emote:DANCE")
@@ -82,6 +82,8 @@ local function Walk(view, widget, windowRect, viewport)
     elseif widget.type == "Dropdown" then
         TextFits(view, widget.label, widget.frame:GetWidth(), name, "label")
         TextFits(view, widget.text, widget.frame:GetWidth() - 40, name, "chosen text")
+    elseif widget.type == "SpeakEasyPicker" then
+        TextFits(view, widget.label, widget.frame:GetWidth(), name, "label")
     elseif widget.type == "Slider" or widget.type == "EditBox" or widget.type == "Keybinding" then
         TextFits(view, widget.label, widget.frame:GetWidth(), name, "label")
     end

@@ -12,6 +12,11 @@ local QUIET = L.Style.COLOURS.secondary
 
 local lineWindow, triggerWindow, iconWindow
 
+-- The trigger editor's height, taller for a spell trigger's list of spells.
+local TRIGGER_EDITOR_HEIGHT = 340
+local SPELL_EDITOR_HEIGHT = 480
+local SPELL_LIST_HEIGHT = 120
+
 -- input: nothing
 -- output: nothing
 -- Closes both editors, for when the main window closes.
@@ -180,6 +185,9 @@ end
 -- The picker's grid: columns and rows of icons on one page.
 local ICON_COLUMNS, ICON_ROWS = 9, 6
 local ICON_SIZE = 36
+local LOADING_SIZE = 72
+-- How fast the loading glow turns, in radians a second.
+local LOADING_SPIN = 4
 local ICON_GAP = 6
 
 local grid
@@ -235,6 +243,42 @@ local function IconGrid()
         grid.buttons[index] = button
     end
 
+    -- A cover over the grid while spell names are still being read: the
+    -- wheel's own ring with its glow turning, and how far along it is.
+    local loading = CreateFrame("Frame", nil, grid, BackdropTemplateMixin and "BackdropTemplate" or nil)
+    loading:SetAllPoints()
+    loading:SetFrameLevel(grid:GetFrameLevel() + 5)
+    loading:EnableMouse(true)
+    L.Style.Surface(loading, { 0.075, 0.075, 0.09, 0.92 }, { 0, 0, 0, 0 })
+    loading.ring = loading:CreateTexture(nil, "ARTWORK")
+    loading.ring:SetTexture(L.Wheel.RING_TEXTURE)
+    loading.ring:SetSize(LOADING_SIZE, LOADING_SIZE)
+    loading.ring:SetPoint("CENTER", 0, 14)
+    loading.glow = loading:CreateTexture(nil, "OVERLAY")
+    loading.glow:SetTexture(L.Wheel.GLOW_TEXTURE)
+    loading.glow:SetBlendMode("ADD")
+    loading.glow:SetAllPoints(loading.ring)
+    loading.text = loading:CreateFontString(nil, "OVERLAY")
+    loading.text:SetFontObject(L.Style.Body)
+    loading.text:SetPoint("TOP", loading.ring, "BOTTOM", 0, -10)
+    loading:SetScript("OnUpdate", function(self, elapsed)
+        self.angle = ((self.angle or 0) - elapsed * LOADING_SPIN) % (2 * math.pi)
+        self.glow:SetRotation(self.angle)
+    end)
+    loading:Hide()
+    grid.loading = loading
+
+    -- The next page's icons, drawn invisibly so the game loads them before
+    -- the page is turned and they appear at once.
+    grid.preload = {}
+    for index = 1, #grid.buttons do
+        local texture = grid:CreateTexture(nil, "BACKGROUND")
+        texture:SetSize(1, 1)
+        texture:SetPoint("TOPLEFT")
+        texture:SetAlpha(0)
+        grid.preload[index] = texture
+    end
+
     grid:SetScript("OnMouseWheel", Safe(function(_, delta)
         if grid.onScroll then
             grid.onScroll(-delta)
@@ -266,6 +310,7 @@ function L.Editors.Icon(scene)
         "SpeakEasyIconPicker", nil, function()
             iconWindow = nil
             L.Compat.ReadIconNames(nil)
+            frame.loading:Hide()
             frame:Hide()
             frame:ClearAllPoints()
             frame:SetParent(UIParent)
@@ -290,13 +335,14 @@ function L.Editors.Icon(scene)
             button.value, button.name = value, names[first + index]
             button.icon:SetTexture(value)
             button:SetShown(value ~= nil)
+            frame.preload[index]:SetTexture(list[first + #frame.buttons + index])
         end
 
-        if reading then
-            label:SetText(reading)
-        else
-            label:SetText(#list == 0 and L.Text.ICON_NONE or L.Text.ICON_PAGE:format(page, pages))
-        end
+        -- A search before every name is read shows the loading cover.
+        local searching = lastSearch ~= nil and lastSearch ~= ""
+        frame.loading:SetShown(reading ~= nil and searching)
+        frame.loading.text:SetText(reading or "")
+        label:SetText(#list == 0 and not reading and L.Text.ICON_NONE or L.Text.ICON_PAGE:format(page, pages))
     end
 
     -- input: the search text, and true to stay on the current page
@@ -389,12 +435,16 @@ function L.Editors.Icon(scene)
             return
         end
 
-        reading = not done and L.Text.ICON_READING:format(math.floor(progress * 100)) or nil
-        if lastSearch and lastSearch ~= "" then
-            Search(lastSearch, true)
-        else
-            Show()
+        -- While names are read only the loading text changes; the search runs
+        -- once they are all in, rather than on every frame.
+        if not done then
+            reading = L.Text.ICON_READING:format(math.floor(progress * 100))
+            frame.loading.text:SetText(reading)
+            return
         end
+
+        reading = nil
+        Search(lastSearch or "", true)
     end)
 
     return window
@@ -412,10 +462,20 @@ function L.Editors.EventText(trigger, nameOnly)
         return text
     elseif trigger.event == "LOW_HEALTH" then
         return text .. " " .. L.Text.EVENT_BELOW:format(trigger.options.threshold)
-    elseif trigger.event == "SPELL_CAST" and trigger.options.item then
-        return L.Text.EVENT_ITEM_SHORT:format(L.Util.Escape(trigger.options.item))
     elseif trigger.event == "SPELL_CAST" then
-        return L.Text.EVENT_SPELL_SHORT:format(L.Util.Escape(trigger.options.spell or "?"))
+        local spells = trigger.options.spells or {}
+        local first = spells[1]
+        if not first then
+            return text
+        end
+
+        local name = first.item and L.Text.EVENT_ITEM_SHORT:format(L.Util.Escape(first.item))
+            or L.Text.EVENT_SPELL_SHORT:format(L.Util.Escape(first.spell))
+        if #spells > 1 then
+            name = name .. " " .. L.Text.EVENT_MORE:format(#spells - 1)
+        end
+
+        return name
     end
 
     return text
@@ -433,7 +493,7 @@ function L.Editors.Trigger(index)
     local draft = L.Util.DeepCopy(stored or L.Db.NewTrigger())
 
     local window = L.UI.Window(stored and L.Text.TITLE_EDIT_TRIGGER or L.Text.TITLE_NEW_TRIGGER,
-        420, 340, "SpeakEasyTriggerEditor", nil, function()
+        420, TRIGGER_EDITOR_HEIGHT, "SpeakEasyTriggerEditor", nil, function()
             triggerWindow = nil
         end)
     triggerWindow = window
@@ -460,7 +520,7 @@ function L.Editors.Trigger(index)
     -- output: nothing
     -- Saves the draft trigger and closes the editor, unless a spell or scene is missing.
     local function Save()
-        if draft.event == "SPELL_CAST" and strtrim(draft.options.spell or "") == "" then
+        if draft.event == "SPELL_CAST" and #(draft.options.spells or {}) == 0 then
             L.Util.Print(L.Text.ERR_NO_SPELL, "error")
             return
         end
@@ -475,11 +535,13 @@ function L.Editors.Trigger(index)
         L.Window.Refresh()
     end
 
-    -- input: nothing
+    -- input: true to put the cursor back in the spell box
     -- output: nothing
     -- Rebuilds the editor's controls, since each event has its own option.
-    Build = function()
+    Build = function(focusSpell)
         window:ReleaseChildren()
+        -- The spell list needs room; other events need less.
+        window:SetHeight(draft.event == "SPELL_CAST" and SPELL_EDITOR_HEIGHT or TRIGGER_EDITOR_HEIGHT)
 
         L.UI.Select(window, L.Text.LABEL_EVENT, draft.event, events, eventOrder, nil, function(event)
             draft.event = event
@@ -491,31 +553,67 @@ function L.Editors.Trigger(index)
                 draft.options.threshold = value
             end)
         elseif draft.event == "SPELL_CAST" then
-            local hint
+            draft.options.spells = draft.options.spells or {}
+            local spells = draft.options.spells
 
-            -- input: the spell box or nil, and the text typed or linked into it
+            -- input: text typed or a shift-clicked spell or item link
             -- output: nothing
-            -- Turns a typed name, a spell link or an item into the spell name the
-            -- trigger watches for, shift-clicked links included.
-            local function Take(widget, text)
+            -- Adds the spell, or the spell an item casts, to the list, once.
+            local function Add(text)
                 local spell, item = L.Compat.SpellOrItem(text)
-                draft.options.spell, draft.options.item = spell ~= "" and spell or nil, item
-                if text:find("|H", 1, true) then
-                    widget:SetText(item or spell)
+                if spell == "" then
+                    return
                 end
 
-                hint:SetText(item and L.Text.HINT_SPELL_ITEM:format(L.Util.Escape(item), L.Util.Escape(spell)) or "")
+                for _, entry in ipairs(spells) do
+                    if entry.spell:lower() == spell:lower() and entry.item == item then
+                        return
+                    end
+                end
+
+                if #spells < L.Db.MAX_TRIGGER_SPELLS then
+                    spells[#spells + 1] = { spell = spell, item = item }
+                end
+
+                -- Rebuilt on the next frame, not inside the box's own callback.
+                C_Timer.After(0, Safe(function()
+                    if triggerWindow == window then
+                        Build(true)
+                    end
+                end))
             end
 
-            local spell = L.UI.Input(window, L.Text.LABEL_SPELL, draft.options.item or draft.options.spell, nil, function(text)
-                Take(nil, text)
-            end)
-            spell:DisableButton(true)
-            hint = L.UI.Label(window, "", nil)
-            spell:SetCallback("OnTextChanged", Safe(function(widget, _, text)
-                Take(widget, text)
+            local input = L.UI.Input(window, L.Text.LABEL_SPELL, "", nil, Add)
+            input:DisableButton(true)
+            input:SetCallback("OnTextChanged", Safe(function(_, _, text)
+                if text:find("|H", 1, true) then
+                    Add(text)
+                end
             end))
-            Take(spell, draft.options.item or draft.options.spell or "")
+
+            local list = L.UI.ScrollList(window, SPELL_LIST_HEIGHT)
+            for index, entry in ipairs(spells) do
+                local row = L.UI.Row(list, L.Util.Escape(entry.item or entry.spell), function()
+                end)
+                row:SetSecondary(entry.item and L.Text.SPELL_VIA:format(L.Util.Escape(entry.spell)) or "")
+                row:SetActions({ { "remove", L.Text.BUTTON_REMOVE, "danger" } })
+                row:SetCallback("OnAction", Safe(function()
+                    table.remove(spells, index)
+                    C_Timer.After(0, Safe(function()
+                        if triggerWindow == window then
+                            Build()
+                        end
+                    end))
+                end))
+            end
+
+            if #spells == 0 then
+                L.UI.Label(list, L.Text.HINT_NO_SPELLS, nil)
+            end
+
+            if focusSpell then
+                input:SetFocus()
+            end
         end
 
         L.UI.Select(window, L.Text.LABEL_SCENE, draft.sceneId, scenes, sceneOrder, nil, function(id)

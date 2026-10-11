@@ -3,7 +3,7 @@
 ## Notes: An emote and quick chat wheel on one key, and scenes of lines said at random from one button.
 ## Author: FinLaFin
 ## Version: 1.0.0
-## IconTexture: Interface\Icons\INV_Misc_Note_01
+## IconTexture: Interface\AddOns\SpeakEasy\Media\icon
 ## SavedVariables: SpeakEasyDB
 ## SavedVariablesPerCharacter: SpeakEasyCharDB
 

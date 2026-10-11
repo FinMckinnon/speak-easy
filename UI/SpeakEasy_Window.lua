@@ -360,15 +360,14 @@ local function BuildWheelPage(container, pageIndex)
 
     for _, slot in ipairs(COMPASS) do
         if slot == 0 then
-            local ring = AceGUI:Create("Icon")
+            local ring = AceGUI:Create("SpeakEasyRing")
             ring:SetImage(L.Wheel.RING_TEXTURE)
-            ring:SetImageSize(64, 64)
             ring:SetRelativeWidth(0.33)
             container:AddChild(ring)
         else
             -- A slot naming a deleted scene shows as empty.
             local value = list[page[slot]] and page[slot] or ""
-            L.UI.LazySelect(container, L.Text["SLOT_" .. slot], value, Choices, 0.33, function(choice)
+            L.UI.Picker(container, L.Text["SLOT_" .. slot], value, Choices, 0.33, function(choice)
                 L.Db.SetWheelSlot(pageIndex, slot, choice ~= "" and choice or nil)
             end)
         end
@@ -480,6 +479,17 @@ local function BuildTriggersTab(container)
     if #triggers == 0 then
         L.UI.Label(box, L.Text.HINT_NO_TRIGGERS, nil)
     end
+
+    -- How Say and Yell lines from triggers go out, beside the triggers
+    -- themselves: outside instances they wait for a key press.
+    local settings = L.Db.Settings()
+    local lines = L.UI.Section(scroll, L.Text.HEADING_TRIGGER_LINES, L.Text.CAPTION_TRIGGER_LINES)
+    L.UI.Toggle(lines, L.Text.LABEL_ANY_KEY, settings.speakOnAnyKey, nil, function(on)
+        settings.speakOnAnyKey = on
+    end):SetDescription(L.Text.DESC_ANY_KEY)
+    L.UI.Range(lines, L.Text.LABEL_PRIME_TIMEOUT, 3, 30, 1, settings.primeTimeout, 0.5, function(value)
+        settings.primeTimeout = value
+    end)
 end
 
 -- input: the tab container
@@ -493,15 +503,6 @@ local function BuildSettingsTab(container)
     local hotkeys = L.UI.Section(scroll, L.Text.HEADING_HOTKEYS, L.Text.CAPTION_HOTKEYS)
     L.UI.BindingPicker(hotkeys, L.Text.BINDING_WHEEL, "SPEAKEASY_WHEEL", 0.5)
     L.UI.BindingPicker(hotkeys, L.Text.BINDING_SPEAK, "SPEAKEASY_SPEAK", 0.5)
-
-    -- Only Say and Yell lines from triggers outside instances wait for a key.
-    local lines = L.UI.Section(scroll, L.Text.HEADING_TRIGGER_LINES, L.Text.CAPTION_TRIGGER_LINES)
-    L.UI.Toggle(lines, L.Text.LABEL_ANY_KEY, settings.speakOnAnyKey, nil, function(on)
-        settings.speakOnAnyKey = on
-    end):SetDescription(L.Text.DESC_ANY_KEY)
-    L.UI.Range(lines, L.Text.LABEL_PRIME_TIMEOUT, 3, 30, 1, settings.primeTimeout, 0.5, function(value)
-        settings.primeTimeout = value
-    end)
 
     -- Limits that apply to every trigger, whatever its channel.
     local all = L.UI.Section(scroll, L.Text.HEADING_ALL_TRIGGERS)
@@ -592,6 +593,10 @@ function L.Window.Open(tab)
         Refresh()
         return
     end
+
+    -- Read spell names for the icon picker's search now, in the background,
+    -- so they are usually all in by the time the picker is opened.
+    L.Compat.StartReadingIconNames()
 
     window = L.UI.Window(L.Text.ADDON_NAME, WIDTH, HEIGHT, "SpeakEasyWindow", L.Db.Settings().window, function()
         window, tabs, dragLabel = nil, nil, nil

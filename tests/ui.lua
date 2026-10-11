@@ -2,12 +2,31 @@
 -- driven through the real AceGUI widgets on the mock client.
 -- Run from the addon folder: node tests/run.js tests/ui.lua .
 local M, F, L = dofile("tests/real.lua")
+
+-- A clock that moves a millisecond per look, so reading spell names takes
+-- many frames here, as it does in the game, and the loading cover can be seen.
+local clock = 0
+debugprofilestop = function()
+    clock = clock + 1
+    return clock
+end
 local check, Find, OfType, Shows, TextOf = M.check, M.Find, M.OfType, M.Shows, M.TextOf
 
 local function Labelled(text)
     return function(w) return type(w.label) == "table" and w.label.text == text end
 end
 local function Entries(dropdown) return #dropdown.pullout.items end
+
+-- The searchable picker: open it, type, read the visible rows, click one.
+local function OpenPicker(picker) picker.field.scripts.OnClick(picker.field) end
+local function Search(text) SpeakEasyPickerList.search:SetText(text); SpeakEasyPickerList.search.scripts.OnTextChanged(SpeakEasyPickerList.search) end
+local function Rows()
+    local shown = {}
+    for _, row in ipairs(SpeakEasyPickerList.rows) do
+        if row.shown then shown[#shown + 1] = row end
+    end
+    return shown
+end
 
 print("Window")
 SlashCmdList.SPEAKEASY("")
@@ -71,6 +90,14 @@ local widgetsBefore = #F.regions
 SpeakEasyIconGrid.scripts.OnMouseWheel(SpeakEasyIconGrid, -1)
 check(#F.regions == widgetsBefore, "turning the page makes no new frames")
 local iconSearch = Find(SpeakEasyIconPicker.obj, Labelled(L.Text.LABEL_ICON_SEARCH))[1]
+iconSearch:Fire("OnTextChanged", "hammer")
+check(SpeakEasyIconGrid.loading.shown and SpeakEasyIconGrid.loading.text.text:find("Reading spell names", 1, true),
+    "searching before the names are read shows the loading cover")
+check(#SpeakEasyIconGrid.preload == #SpeakEasyIconGrid.buttons, "a hidden texture per icon preloads the next page")
+debugprofilestop = function() return 0 end
+F.Tick()
+check(not SpeakEasyIconGrid.loading.shown and SpeakEasyIconGrid.buttons[1].value == 135963,
+    "once read, the cover goes and the results show")
 iconSearch:Fire("OnTextChanged", "Fireball")
 check(cells[1].value == 135812 and cells[1].name == "Fireball" and not cells[2].shown, "searching a spell's name finds its icon")
 cells[1].scripts.OnEnter(cells[1])
@@ -78,6 +105,10 @@ check(GameTooltip.text == "Fireball", "hovering an icon shows its name")
 iconSearch:Fire("OnTextChanged", "|cff71d5ff|Hspell:133:0|h[Fireball]|h|r")
 check(cells[1].value == 135812, "a shift-clicked spell finds its icon")
 F.Settle()
+check(#L.Compat.SearchIcons("of") == 1, "an icon whose two names both match is listed once")
+check(#L.Compat.SearchIcons("hammer\1") == 0 and #L.Compat.SearchIcons("") == 0, "odd or empty searches find nothing")
+check(L.Compat.SearchIcons("ce")[1] == 135903 and L.Compat.SearchIcons("ce")[2] == 135963, "results come sorted by name: Denounce before Hammer")
+check(#L.Compat.SearchIcons("e") == 0, "one letter does not search")
 iconSearch:Fire("OnTextChanged", "hammer")
 check(cells[1].value == 135963 and not cells[2].shown, "searching part of a name finds icons spells with that name use")
 cells[1].scripts.OnEnter(cells[1])
@@ -131,9 +162,16 @@ insert:Fire("OnValueChanged", "targetName")
 check(box:GetText() == "{targetName}" and insert.value == nil, "variable inserted at the cursor")
 
 local emote = Find(editor, Labelled(L.Text.LABEL_EMOTE))[1]
-emote:Fire("OnEnter")
-check(emote.list.DANCE and emote.list.WAVE and emote.list.__none, "emote picker lists every emote and none")
-emote:Fire("OnValueChanged", "DANCE")
+check(emote.type == "SpeakEasyPicker" and emote.text.text == L.Text.NONE, "the emote is a searchable picker showing none")
+OpenPicker(emote)
+check(SpeakEasyPickerList.shown and #Rows() == 7, "clicking it opens the list of none and every emote")
+Search("da")
+check(#Rows() == 1 and Rows()[1].text.text == "Dance", "typing filters the list as you go")
+Search("zzz")
+check(#Rows() == 0 and SpeakEasyPickerList.empty.shown, "no match says so")
+Search("dan")
+SpeakEasyPickerList.search.scripts.OnEnterPressed(SpeakEasyPickerList.search)
+check(not SpeakEasyPickerList.shown and emote.value == "DANCE" and emote.text.text == "Dance", "Enter picks the top match and closes the list")
 
 local lineCount = #combat.lines
 Type("Have at you\n")
@@ -149,18 +187,31 @@ print("Trigger editor")
 local triggerCount = #SpeakEasyDB.triggers
 local triggerEditor = L.Editors.Trigger(nil)
 Find(triggerEditor, Labelled(L.Text.LABEL_EVENT))[1]:Fire("OnValueChanged", "SPELL_CAST")
-local spell = Find(triggerEditor, Labelled(L.Text.LABEL_SPELL))[1]
-check(spell ~= nil, "spell field shown for the spell event")
+local function SpellBox() return Find(triggerEditor, Labelled(L.Text.LABEL_SPELL))[1] end
+local function SpellRows() return Find(triggerEditor, OfType("SpeakEasyRow")) end
+check(SpellBox() ~= nil and #SpellRows() == 0, "spell box shown for the spell event, list empty")
 Find(triggerEditor, Shows("Save"))[1]:Fire("OnClick")
 check(#SpeakEasyDB.triggers == triggerCount, "spell trigger without a spell not saved")
-spell:Fire("OnTextChanged", "|cffffffff|Hitem:2287:0|h[Haunch of Meat]|h|r")
-check(spell:GetText() == "Haunch of Meat", "a shift-clicked item shows as its name")
-check(Find(triggerEditor, function(w) return w.type == "Label" and (w.label.text or ""):find("casts Food", 1, true) end)[1] ~= nil, "the editor explains the item casts Food")
-spell:Fire("OnTextChanged", "|cff71d5ff|Hspell:133:0|h[Fireball]|h|r")
-check(spell:GetText() == "Fireball", "a shift-clicked spell shows as its name")
+SpellBox():Fire("OnTextChanged", "|cffffffff|Hitem:2287:0|h[Haunch of Meat]|h|r")
+F.Tick()
+check(#SpellRows() == 1 and M.TextOf(SpellRows()[1]) == "Haunch of Meat" and SpellRows()[1].secondary.text == "casts Food",
+    "a shift-clicked item joins the list, showing the spell it casts")
+SpellBox():Fire("OnTextChanged", "|cff71d5ff|Hspell:133:0|h[Fireball]|h|r")
+F.Tick()
+SpellBox():Fire("OnEnterPressed", "Flash of Light")
+F.Tick()
+check(#SpellRows() == 3, "shift-clicked spells and typed names add up in the list")
+SpellBox():Fire("OnTextChanged", "|cff71d5ff|Hspell:133:0|h[Fireball]|h|r")
+F.Tick()
+check(#SpellRows() == 3, "the same spell is not added twice")
+SpellRows()[1].actionButtons[1].scripts.OnClick(SpellRows()[1].actionButtons[1])
+F.Tick()
+check(#SpellRows() == 2, "Remove takes an entry off the list")
 Find(triggerEditor, Shows("Save"))[1]:Fire("OnClick")
 local saved = SpeakEasyDB.triggers[#SpeakEasyDB.triggers]
-check(#SpeakEasyDB.triggers == triggerCount + 1 and saved.options.spell == "Fireball" and saved.chance == 30, "trigger saved with defaults")
+check(#SpeakEasyDB.triggers == triggerCount + 1 and #saved.options.spells == 2 and saved.options.spells[1].spell == "Fireball" and saved.chance == 30,
+    "trigger saved with its list and defaults")
+check(L.Editors.EventText(saved):find("and 1 more", 1, true) ~= nil, "the trigger row says how many more spells it watches")
 
 print("Triggers tab")
 tabs:SelectTab("triggers")
@@ -313,23 +364,25 @@ check(#L.Db.WheelPages() == 3, "page slider sets the page count")
 local pageTabs = Find(tabs, function(w) return w.type == "SpeakEasyTabs" and w ~= tabs end)[1]
 check(#pageTabs.tabList == 3, "one segment per page")
 local top = Find(pageTabs, Labelled("Top"))[1]
-local itemCount = 0
-for _, picker in ipairs(Find(pageTabs, OfType("Dropdown"))) do itemCount = itemCount + Entries(picker) end
-check(itemCount == 8, "slot pickers hold one entry each until used: " .. itemCount)
-top:Fire("OnEnter")
-check(top.list["emote:WAVE"] == "Emote: wave" or top.list["emote:WAVE"] == "Emote: Wave", "hovering fills the choices, emotes included")
-check(top.list.hail ~= nil and top.list[""] == L.Text.EMPTY_SLOT, "slot choices include scenes and empty")
-top:Fire("OnValueChanged", "emote:WAVE")
-top:Fire("OnClosed")
-check(L.Db.WheelPages()[1][1] == "emote:WAVE", "choosing a slot saves it")
-check(Entries(top) == 1 and top.value == "emote:WAVE", "closing lets the long list go, keeping the choice")
-top.button.scripts.OnClick(top.button)
-check(top.open, "clicking a dropdown opens it")
+check(#Find(pageTabs, OfType("SpeakEasyPicker")) == 8 and #Find(pageTabs, OfType("Dropdown")) == 0, "the 8 slots are searchable pickers")
+OpenPicker(top)
+check(top.list["emote:WAVE"] ~= nil and top.list.hail ~= nil and top.list[""] == L.Text.EMPTY_SLOT, "slot choices: empty, scenes and emotes")
+Search("wave")
+check(#Rows() == 1, "searching narrows the slot choices")
+Rows()[1].scripts.OnClick(Rows()[1])
+check(L.Db.WheelPages()[1][1] == "emote:WAVE" and not SpeakEasyPickerList.shown, "clicking a row saves the slot and closes the list")
+OpenPicker(top)
+check(SpeakEasyPickerList.shown, "clicking the field opens it again")
 M.Fire("GLOBAL_MOUSE_DOWN", "LeftButton")
-check(not top.open, "clicking anywhere else closes it without choosing")
-check(L.Db.WheelPages()[1][1] == "emote:WAVE", "and the choice is unchanged")
+check(not SpeakEasyPickerList.shown and L.Db.WheelPages()[1][1] == "emote:WAVE", "clicking anywhere else closes it, choice unchanged")
+OpenPicker(top)
+SpeakEasyPickerList.search.scripts.OnEscapePressed(SpeakEasyPickerList.search)
+check(not SpeakEasyPickerList.shown, "Escape closes it")
 pageTabs:SelectTab(3)
-Find(pageTabs, Labelled("Bottom left"))[1]:Fire("OnValueChanged", "hail")
+local bottomLeft = Find(pageTabs, Labelled("Bottom left"))[1]
+OpenPicker(bottomLeft)
+Search("hail")
+SpeakEasyPickerList.search.scripts.OnEnterPressed(SpeakEasyPickerList.search)
 check(L.Db.WheelPages()[3][6] == "hail", "slots on later pages save to that page")
 local sizeSlider = Find(tabs, function(w) return w.type == "Slider" and w.label.text == L.Text.LABEL_WHEEL_SIZE end)[1]
 sizeSlider:Fire("OnValueChanged", 1.5)

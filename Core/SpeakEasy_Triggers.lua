@@ -30,6 +30,7 @@ local wasBelow = setmetatable({}, { __mode = "k" })
 local lastAny = -math.huge
 
 local loaded = false
+local itemsWatched = false
 local wasMounted, wasResting
 
 -- input: a trigger and the event context
@@ -44,9 +45,17 @@ local function Matches(trigger, context)
         return fire
     end
 
+    -- A spell trigger matches any spell on its list, and also gives back the
+    -- entry, so the item it came from can fill {itemName}.
     if trigger.event == "SPELL_CAST" then
-        local wanted = trigger.options.spell
-        return wanted ~= nil and context.spellName ~= nil and wanted:lower() == context.spellName:lower()
+        local cast = context.spellName and context.spellName:lower()
+        for _, entry in ipairs(trigger.options.spells or {}) do
+            if cast == entry.spell:lower() then
+                return true, entry
+            end
+        end
+
+        return false
     end
 
     return true
@@ -64,9 +73,14 @@ function L.Triggers.Fire(kind, context)
     -- Matched for every trigger first, so low health state stays current even
     -- while muted or inside the global gap.
     local candidates = {}
+    local entries = {}
     for _, trigger in ipairs(L.Db.Set().triggers) do
-        if trigger.event == kind and Matches(trigger, context) and trigger.enabled then
-            candidates[#candidates + 1] = trigger
+        if trigger.event == kind then
+            local matched, entry = Matches(trigger, context)
+            if matched and trigger.enabled then
+                candidates[#candidates + 1] = trigger
+                entries[trigger] = entry
+            end
         end
     end
 
@@ -101,8 +115,11 @@ function L.Triggers.Fire(kind, context)
         elseif not scene then
             Debug(L.Text.DEBUG_NO_SCENE, name)
         else
-            -- The cast only names the spell; the trigger knows which item it was.
-            context.itemName = trigger.options.item
+            -- The cast only names the spell: a spell trigger set from an item
+            -- knows its item, and eat or drink brings the item you just used.
+            if trigger.event == "SPELL_CAST" then
+                context.itemName = entries[trigger] and entries[trigger].item
+            end
             local played, why = L.Play.Scene(scene, context, true)
             if played then
                 Debug(why == "primed" and L.Text.DEBUG_PRIMED or L.Text.DEBUG_SENT, name)
@@ -168,6 +185,27 @@ local function HandleAddonLoaded(name)
     end
 end
 
+-- The last item you used and when, for {itemName} on eat or drink triggers.
+local lastItem, lastItemTime
+-- An item counts as the cause of a cast this many seconds after its use.
+local ITEM_WINDOW = 5
+
+-- input: an item name
+-- output: nothing
+-- Remembers the item you just used.
+local function RememberItem(name)
+    lastItem, lastItemTime = name, GetTime()
+end
+
+-- input: nothing
+-- output: the item you used in the last few seconds, or nil
+-- Gives the item behind a cast that just happened.
+local function RecentItem()
+    if lastItemTime and GetTime() - lastItemTime <= ITEM_WINDOW then
+        return lastItem
+    end
+end
+
 -- input: nothing
 -- output: nothing
 -- Records the starting mount and rest state, then sets up the minimap button, key listener and scene buttons.
@@ -177,6 +215,10 @@ local function HandlePlayerLogin()
     L.Window.CreateMinimapButton()
     L.Prime.ListenForKeys()
     L.Macro.UpdateAll()
+    if not itemsWatched then
+        itemsWatched = true
+        L.Compat.WatchItemUse(L.Util.Safe(RememberItem))
+    end
 end
 
 -- input: nothing
@@ -189,12 +231,40 @@ local function HandleRegenEnabled()
     L.Triggers.Fire("LEAVE_COMBAT")
 end
 
+-- Spells that eating and drinking cast: Food, Drink, Food & Drink, and
+-- Refreshment for conjured food. Their names are read from the client, so they
+-- match in every language.
+-- ponytail: a fixed list of ids; add one here if some food casts another spell.
+local EAT_DRINK_SPELLS = { 433, 430, 22734, 192002, 167152 }
+local eatDrinkNames
+
+-- input: a spell name
+-- output: true when casting it means you are eating or drinking
+-- Checks the name against the food and drink spells, read once from the client.
+local function IsEatOrDrink(name)
+    if not eatDrinkNames then
+        eatDrinkNames = {}
+        for _, id in ipairs(EAT_DRINK_SPELLS) do
+            local spell = L.Compat.SpellName(id)
+            if spell then
+                eatDrinkNames[spell] = true
+            end
+        end
+    end
+
+    return name ~= nil and eatDrinkNames[name] == true
+end
+
 -- input: the casting unit, the cast id and the spell id
 -- output: nothing
--- Fires spell cast triggers for your own casts.
+-- Fires spell cast triggers for your own casts, and eat or drink triggers for food and drink.
 local function HandleSpellcastSucceeded(unit, _, spellID)
     if unit == "player" and spellID then
-        L.Triggers.Fire("SPELL_CAST", { spellName = L.Compat.SpellName(spellID) })
+        local name = L.Compat.SpellName(spellID)
+        L.Triggers.Fire("SPELL_CAST", { spellName = name })
+        if IsEatOrDrink(name) then
+            L.Triggers.Fire("EAT_DRINK", { spellName = name, itemName = RecentItem() })
+        end
     end
 end
 

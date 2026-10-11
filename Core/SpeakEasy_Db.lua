@@ -10,11 +10,12 @@ L.Db.MAX_NAME = 32
 L.Db.DEFAULT_ICON = 134400
 L.Db.WHEEL_SLOTS = 8
 L.Db.MAX_WHEEL_PAGES = 9
+L.Db.MAX_TRIGGER_SPELLS = 50
 -- A wheel slot holding an emote rather than a scene: "emote:DANCE".
 L.Db.EMOTE_SLOT = "emote:"
 
 L.Db.CHANNELS = { "SAY", "EMOTE", "YELL", "PARTY", "RAID", "INSTANCE_CHAT", "AUTO" }
-L.Db.EVENTS = { "ENTER_COMBAT", "LEAVE_COMBAT", "LOW_HEALTH", "DEATH", "SPELL_CAST", "MOUNT", "REST_AREA", "TARGET_NPC" }
+L.Db.EVENTS = { "ENTER_COMBAT", "LEAVE_COMBAT", "LOW_HEALTH", "DEATH", "SPELL_CAST", "EAT_DRINK", "MOUNT", "REST_AREA", "TARGET_NPC" }
 
 -- Words /speakeasy treats as commands, so no scene id may take them.
 local RESERVED_IDS = { mute = true, speak = true, debug = true }
@@ -195,6 +196,25 @@ local function CleanTrigger(trigger)
 
     local options = type(trigger.options) == "table" and trigger.options or {}
 
+    -- A trigger keeps only the options its own event uses, so ones left from
+    -- another event (say an item, after switching to eat or drink) cannot linger.
+    local isSpell = trigger.event == "SPELL_CAST"
+
+    -- Spell triggers watch a list of spells, each perhaps from an item. Ones
+    -- saved before the list held a single spell and item directly.
+    local stored = type(options.spells) == "table" and options.spells or {}
+    if type(options.spell) == "string" and #stored == 0 then
+        stored = { { spell = options.spell, item = options.item } }
+    end
+
+    local spells = {}
+    for _, entry in ipairs(isSpell and stored or {}) do
+        local spell = type(entry) == "table" and Text(entry.spell, 64)
+        if spell and strtrim(spell) ~= "" and #spells < L.Db.MAX_TRIGGER_SPELLS then
+            spells[#spells + 1] = { spell = spell, item = Text(entry.item, 64) }
+        end
+    end
+
     return {
         event = trigger.event,
         sceneId = Text(trigger.sceneId, 64) or "",
@@ -203,9 +223,7 @@ local function CleanTrigger(trigger)
         enabled = trigger.enabled ~= false,
         options = {
             threshold = Number(options.threshold, 1, 99, 30),
-            spell = Text(options.spell, 64),
-            -- The item the spell came from, when it was set from an item.
-            item = Text(options.item, 64),
+            spells = isSpell and spells or nil,
         },
     }
 end

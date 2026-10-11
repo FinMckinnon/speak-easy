@@ -55,6 +55,7 @@ L.Text = {
     -- Buttons
     BUTTON_EDIT = "Edit",
     BUTTON_DELETE = "Delete",
+    BUTTON_REMOVE = "Remove",
     BUTTON_RENAME = "Rename",
     BUTTON_COPY = "Duplicate",
     BUTTON_NEW_SCENE = "New scene",
@@ -81,7 +82,7 @@ L.Text = {
     LABEL_EMOTE = "Emote",
     LABEL_EVENT = "Event",
     LABEL_THRESHOLD = "Health below (%)",
-    LABEL_SPELL = "Spell or item (type it, or shift-click one)",
+    LABEL_SPELL = "Add a spell or item: shift-click it, or type a name and press Enter",
     LABEL_SCENE = "Scene",
     LABEL_CHANCE = "Chance (%)",
     LABEL_TRIGGER_COOLDOWN = "Cooldown (seconds)",
@@ -108,7 +109,7 @@ L.Text = {
     HINT_TEST = "Prints to your chat only",
     HINT_WHEEL = "Hold the key, point at a slot and let go. Let go in the middle to cancel. "
         .. "Scroll or click the arrows to change page.",
-    HINT_SPELL_ITEM = "Using %s casts %s, so the trigger watches for that.",
+    HINT_NO_SPELLS = "No spells or items yet. Add one above.",
 
     -- Tooltips
     TOOLTIP_DRAG = "Drag to an action bar. Pressing it says the next line.",
@@ -136,11 +137,15 @@ L.Text = {
     SLOT_7 = "Left",
     SLOT_8 = "Top left",
 
+    -- Searchable picker
+    PICKER_SEARCH = "Type to search",
+    PICKER_NONE = "Nothing matches",
+
     -- Icon picker
     ICON_ID = "Icon id %s",
     ICON_UNNAMED = "Unnamed icon",
     ICON_ALSO = "Also: %s",
-    ICON_READING = "Reading spell names for search: %d%%",
+    ICON_READING = "Reading spell names for search... %d%%",
     ICON_NONE = "Nothing matches. Try a spell or item name, or shift-click one.",
     ICON_PAGE = "%d of %d",
 
@@ -177,8 +182,11 @@ L.Text = {
     EVENT_LOW_HEALTH = "Low health",
     EVENT_DEATH = "Death",
     EVENT_SPELL_CAST = "Cast a spell or use an item",
+    EVENT_EAT_DRINK = "Eat or drink",
     EVENT_SPELL_SHORT = "Cast %s",
     EVENT_ITEM_SHORT = "Use %s",
+    EVENT_MORE = "and %d more",
+    SPELL_VIA = "casts %s",
     EVENT_MOUNT = "Mount up",
     EVENT_REST_AREA = "Enter a rest area",
     EVENT_TARGET_NPC = "Target an NPC",
@@ -198,7 +206,7 @@ L.Text = {
     VAR_timeOfDay = "Morning, afternoon, evening or night",
     VAR_healthPercent = "Your health",
     VAR_spellName = "Spell that fired a spell trigger",
-    VAR_itemName = "Item whose use fired an item trigger",
+    VAR_itemName = "The item you used, for item and eat or drink triggers",
 
     -- Variable examples
     EXAMPLE_ITEM = "Haunch of Meat",
@@ -256,6 +264,6 @@ L.Text = {
     ERR_NAME_EMPTY = "A scene needs a name.",
     ERR_NAME_LONG = "That name is too long.",
     ERR_NAME_TAKEN = "Another scene already has that name.",
-    ERR_NO_SPELL = "Enter a spell or item.",
+    ERR_NO_SPELL = "Add at least one spell or item.",
     ERR_NO_SCENE = "Pick a scene.",
 }

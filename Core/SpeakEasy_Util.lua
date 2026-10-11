@@ -158,6 +158,59 @@ function L.Compat.ParseLink(text)
     return kind, tonumber(id), text:match("|h%[(.-)%]|h") or text
 end
 
+-- input: an item id, link or name
+-- output: the item's name, or nil when the client does not know it
+function L.Compat.ItemName(item)
+    if type(item) == "number" then
+        local getName = (C_Item and C_Item.GetItemNameByID) or GetItemInfo
+        return getName and (getName(item))
+    end
+
+    local _, _, name = L.Compat.ParseLink(item)
+    return name ~= "" and name or nil
+end
+
+-- input: a function given the name of each item you use
+-- output: nothing
+-- Watches item use from the action bar (and its macros), the bags and /use,
+-- since the cast an item starts only names its spell. The hooks run after
+-- the game's own code and change nothing it does.
+function L.Compat.WatchItemUse(onUse)
+    local function Report(item)
+        local name = item and L.Compat.ItemName(item)
+        if name then
+            onUse(name)
+        end
+    end
+
+    if UseAction and GetActionInfo then
+        hooksecurefunc("UseAction", function(slot)
+            local kind, id = GetActionInfo(slot)
+            if kind == "item" then
+                Report(id)
+            elseif kind == "macro" and GetMacroItem then
+                Report((GetMacroItem(id)))
+            end
+        end)
+    end
+
+    if C_Container and C_Container.UseContainerItem then
+        hooksecurefunc(C_Container, "UseContainerItem", function(bag, slot)
+            Report(C_Container.GetContainerItemLink(bag, slot))
+        end)
+    elseif UseContainerItem and GetContainerItemLink then
+        hooksecurefunc("UseContainerItem", function(bag, slot)
+            Report(GetContainerItemLink(bag, slot))
+        end)
+    end
+
+    if UseItemByName then
+        hooksecurefunc("UseItemByName", function(item)
+            Report(item)
+        end)
+    end
+end
+
 -- input: text typed or shift-clicked into a spell box: a spell or item link,
 --        or a name
 -- output: the spell name to watch for, and the item's name when it came from an item
@@ -228,11 +281,24 @@ end
 -- ponytail: icons no spell uses stay nameless; ship a listfile if that matters.
 L.Compat.SPELL_SCAN_MAX = (WOW_PROJECT_ID and WOW_PROJECT_MAINLINE and WOW_PROJECT_ID == WOW_PROJECT_MAINLINE)
     and 1500000 or 600000
+-- Milliseconds of each frame spent reading spell names: a little in the
+-- background, more while someone waits on the icon picker.
 local SCAN_BUDGET_MS = 4
+local SCAN_BUDGET_WAITING_MS = 12
 local NAMES_PER_ICON = 4
 
 local iconNames = {}   -- icon -> "Name\nOther name", up to NAMES_PER_ICON
-local iconSearch = {}  -- icon -> the same, lower case, for searching
+
+-- The search index, built once every name is read. All the icons' names in
+-- lower case, sorted by name and joined into one string, with where each
+-- icon's entry starts. A search is then one plain string.find over the string,
+-- which runs in C, instead of a Lua loop and a sort on every key press.
+local searchText
+local searchStarts = {}  -- entry number -> where it starts in searchText
+local searchIcons = {}   -- entry number -> its icon
+local ENTRY_BREAK = "\1"
+-- One letter matches nearly every icon, so searching starts at two.
+local MIN_SEARCH = 2
 local scanNext, scanFrame
 local scanDone = false
 
@@ -240,7 +306,7 @@ local scanDone = false
 -- output: nothing
 -- Reads the next stretch of spell ids, stopping once its time is used up.
 local function ScanStep()
-    local stop = debugprofilestop() + SCAN_BUDGET_MS
+    local stop = debugprofilestop() + (scanFrame.onProgress and SCAN_BUDGET_WAITING_MS or SCAN_BUDGET_MS)
     local getName = C_Spell and C_Spell.GetSpellName
     local getIcon = C_Spell and C_Spell.GetSpellTexture
     local max = L.Compat.SPELL_SCAN_MAX
@@ -261,11 +327,10 @@ local function ScanStep()
         if name and icon and name ~= "" and not L.Compat.IsSecret(name) then
             local names = iconNames[icon]
             if not names then
-                iconNames[icon], iconSearch[icon] = name, name:lower()
+                iconNames[icon] = name
             elseif not ("\n" .. names .. "\n"):find("\n" .. name .. "\n", 1, true)
                 and select(2, names:gsub("\n", "")) < NAMES_PER_ICON - 1 then
                 iconNames[icon] = names .. "\n" .. name
-                iconSearch[icon] = iconSearch[icon] .. "\n" .. name:lower()
             end
         end
 
@@ -279,6 +344,7 @@ local function ScanStep()
     if id > max then
         scanDone = true
         scanFrame:SetScript("OnUpdate", nil)
+        L.Compat.BuildIconSearch()
     end
 
     if scanFrame.onProgress then
@@ -286,37 +352,81 @@ local function ScanStep()
     end
 end
 
--- input: a function given progress from 0 to 1 and whether reading is done,
---        or nil to stop being told
+-- input: nothing
 -- output: nothing
--- Starts reading spell names, once a session, and reports as it goes.
-function L.Compat.ReadIconNames(onProgress)
+-- Starts reading spell names in the background, once a session.
+function L.Compat.StartReadingIconNames()
     if not scanFrame then
         scanFrame = CreateFrame("Frame")
         scanNext = 1
         scanFrame:SetScript("OnUpdate", L.Util.Safe(ScanStep))
     end
+end
 
+-- input: a function given progress from 0 to 1 and whether reading is done,
+--        or nil to stop being told
+-- output: nothing
+-- Reads spell names faster while someone waits on them, reporting as it goes.
+function L.Compat.ReadIconNames(onProgress)
+    L.Compat.StartReadingIconNames()
     scanFrame.onProgress = onProgress
-    if scanDone and onProgress then
-        onProgress(1, true)
+    -- Report at once, so a search typed straight away knows names are coming.
+    if onProgress then
+        onProgress(scanDone and 1 or math.min(1, scanNext / L.Compat.SPELL_SCAN_MAX), scanDone)
     end
+end
+
+-- input: nothing
+-- output: nothing
+-- Builds the search index from the names read so far, sorted by name.
+function L.Compat.BuildIconSearch()
+    -- Sorting once here, O(N log N), saves sorting the results of every search.
+    local lower, icons = {}, {}
+    for icon, names in pairs(iconNames) do
+        lower[icon] = names:lower()
+        icons[#icons + 1] = icon
+    end
+    table.sort(icons, function(a, b)
+        return lower[a] < lower[b]
+    end)
+
+    local parts, starts, at = {}, {}, 1
+    for index, icon in ipairs(icons) do
+        starts[index] = at
+        parts[index] = lower[icon]
+        at = at + #lower[icon] + #ENTRY_BREAK
+    end
+
+    searchText = table.concat(parts, ENTRY_BREAK)
+    searchStarts, searchIcons = starts, icons
 end
 
 -- input: text to look for
 -- output: every named icon whose name holds the text, sorted by name
--- Searches the icon names read so far.
+-- Scans the index once in C with a plain find, O(T) for T characters of
+-- names. Hits come in order, so the entry they fall in only ever moves
+-- forward: the whole search is O(T + N) with no sort, and each hit skips to
+-- the next entry so no icon is listed twice.
 function L.Compat.SearchIcons(text)
-    local query, found = text:lower(), {}
-    for icon, names in pairs(iconSearch) do
-        if names:find(query, 1, true) then
-            found[#found + 1] = icon
-        end
+    local query, found = strtrim(text or ""):lower(), {}
+    if not searchText or #query < MIN_SEARCH or query:find(ENTRY_BREAK, 1, true) then
+        return found
     end
 
-    table.sort(found, function(a, b)
-        return iconSearch[a] < iconSearch[b]
-    end)
+    local from, entry, count = 1, 1, #searchStarts
+    while true do
+        local at = searchText:find(query, from, true)
+        if not at then
+            break
+        end
+
+        while entry < count and searchStarts[entry + 1] <= at do
+            entry = entry + 1
+        end
+
+        found[#found + 1] = searchIcons[entry]
+        from = searchStarts[entry + 1] or (#searchText + 1)
+    end
 
     return found
 end

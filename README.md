@@ -66,4 +66,4 @@ Ideas and bug reports are welcome, so let me know what you'd like it to do.
 
 ## Licence
 
-MIT. Copyright (c) 2026 Finlay McKinnon. See [LICENSE](LICENSE).
+MIT. Copyright (c) 2026 Finlay McKinnon. See [LICENSE](https://github.com/FinMckinnon/SpeakEasy/blob/main/LICENSE).
