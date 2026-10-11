@@ -4,6 +4,12 @@ on:
   release:
     types:
       - published
+  # Run by hand to rebuild the zip for a release that already exists.
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Tag of the release to build the zip for
+        required: true
 
 permissions:
   contents: write
@@ -17,6 +23,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.event.release.tag_name }}
 
       # v4.0, 4.0 and 4.0-beta1 all match "## Version: 4.0" or "## Version: 4.0.0".
       - name: Check the tag matches the .toc version
@@ -25,7 +33,7 @@ jobs:
           version="${version%%-*}"
           grep -qxE "## Version: ${version//./\\.}(\.0)*" SpeakEasy.toc
         env:
-          TAG: ${{ github.event.release.tag_name }}
+          TAG: ${{ inputs.tag || github.event.release.tag_name }}
 
       - name: Build zip
         run: |
@@ -38,5 +46,5 @@ jobs:
       - name: Attach zip to the release
         run: gh release upload "$TAG" SpeakEasy.zip --clobber
         env:
-          TAG: ${{ github.event.release.tag_name }}
+          TAG: ${{ inputs.tag || github.event.release.tag_name }}
           GH_TOKEN: ${{ github.token }}
