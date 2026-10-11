@@ -26,22 +26,17 @@ jobs:
         with:
           ref: ${{ inputs.tag || github.event.release.tag_name }}
 
-      # v4.0, 4.0 and 4.0-beta1 all match "## Version: 4.0" or "## Version: 4.0.0".
-      - name: Check the tag matches the .toc version
-        run: |
-          version="${TAG#v}"
-          version="${version%%-*}"
-          grep -qxE "## Version: ${version//./\\.}(\.0)*" SpeakEasy.toc
-        env:
-          TAG: ${{ inputs.tag || github.event.release.tag_name }}
-
       - name: Build zip
         run: |
+          # The tag is the version; CurseForge fills in the same placeholder.
+          sed -i "s/@project-version@/${TAG}/" SpeakEasy.toc
           # Copy only the files the game loads, plus the licence and readme.
           # Tests, editor settings and workflows stay out of the release.
           mkdir SpeakEasy
           cp -r SpeakEasy.toc Bindings.xml Core UI Libs Locale Media LICENSE README.md SpeakEasy/
           zip -r SpeakEasy.zip SpeakEasy
+        env:
+          TAG: ${{ inputs.tag || github.event.release.tag_name }}
 
       - name: Attach zip to the release
         run: gh release upload "$TAG" SpeakEasy.zip --clobber

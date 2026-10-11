@@ -2,7 +2,7 @@
 ## Title: SpeakEasy: Emote Wheel, Quick Chat & Roleplay Lines
 ## Notes: An emote and quick chat wheel on one key, and scenes of lines said at random from one button.
 ## Author: FinLaFin
-## Version: 1.0.1
+## Version: @project-version@
 ## IconTexture: Interface\AddOns\SpeakEasy\Media\icon
 ## SavedVariables: SpeakEasyDB
 ## SavedVariablesPerCharacter: SpeakEasyCharDB
