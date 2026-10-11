@@ -2,6 +2,12 @@
 
 SpeakEasy is a World of Warcraft addon that brings your character to life. Hold a key to open a wheel of emotes and messages around your cursor, point at one and let go. Or drag a scene onto your action bar, and each press says a different line you've written for it.
 
+### [📺 See SpeakEasy in action](https://youtu.be/NxyYw5-dVJM)
+
+![The emote wheel open on a page of emotes](https://media.forgecdn.net/attachments/2038/496/wheel-emotes-png.png)
+
+![The emote wheel open on a page of scenes](https://media.forgecdn.net/attachments/2038/527/wheel-scenes-1-png.png)
+
 ## Who it's for
 
 - **Roleplayers**: give your character a voice of their own, with lines for every situation that never come out the same twice in a row, and reactions when you enter combat, cast a spell or sit down to eat.
