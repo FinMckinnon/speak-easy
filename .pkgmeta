@@ -1,0 +1,9 @@
+# CurseForge packaging. The folder must be called SpeakEasy to match the .toc,
+# whatever the repository is called.
+package-as: SpeakEasy
+
+ignore:
+  - docs
+  - tests
+  - tools
+  - node_modules
