@@ -18,11 +18,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # v4.0, 4.0 and 4.0-beta1 all match "## Version: 4.0".
+      # v4.0, 4.0 and 4.0-beta1 all match "## Version: 4.0" or "## Version: 4.0.0".
       - name: Check the tag matches the .toc version
         run: |
           version="${TAG#v}"
-          grep -qx "## Version: ${version%%-*}" SpeakEasy.toc
+          version="${version%%-*}"
+          grep -qxE "## Version: ${version//./\\.}(\.0)*" SpeakEasy.toc
         env:
           TAG: ${{ github.event.release.tag_name }}
 
