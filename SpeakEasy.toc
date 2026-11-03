@@ -1,4 +1,4 @@
-## Interface: 120100, 11509, 50504, 38002, 20506, 16001
+## Interface: 120105, 11509, 50504, 38002, 20506, 16001
 ## Title: SpeakEasy: Emote Wheel, Quick Chat & Roleplay Lines
 ## Notes: An emote and quick chat wheel on one key, and scenes of lines said at random from one button.
 ## Author: FinLaFin
