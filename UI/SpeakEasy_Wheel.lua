@@ -41,10 +41,10 @@ local originX, originY
 local picked
 local previewing = false
 
--- input: a slot's stored value
+-- input: a slot's stored value, and the icon chosen for the slot, if any
 -- output: what the slot plays, as { name, icon, scene or emote }, or nil when empty
 -- Turns a stored slot value into the scene or emote it plays.
-local function Entry(value)
+local function Entry(value, icon)
     if not value or value == "" then
         return nil
     end
@@ -52,12 +52,12 @@ local function Entry(value)
     local prefix = L.Db.EMOTE_SLOT
     if value:sub(1, #prefix) == prefix then
         local token = value:sub(#prefix + 1)
-        return { name = L.Compat.EmoteName(token), icon = EMOTE_ICON, emote = token }
+        return { name = L.Compat.EmoteName(token), icon = icon or EMOTE_ICON, emote = token }
     end
 
     local scene = L.Db.FindScene(value)
     if scene then
-        return { name = scene.name, icon = scene.icon, scene = scene }
+        return { name = scene.name, icon = icon or scene.icon, scene = scene }
     end
 end
 
@@ -65,10 +65,10 @@ end
 -- output: a table of slot number to entry, holes where the slot is empty
 -- Reads every slot on one wheel page.
 function L.Wheel.Slots(pageIndex)
-    local values = L.Db.WheelPages()[pageIndex] or {}
+    local values = L.Db.WheelPages()[pageIndex] or { icons = {} }
     local slots = {}
     for slot = 1, SLOTS do
-        slots[slot] = Entry(values[slot])
+        slots[slot] = Entry(values[slot], values.icons[slot])
     end
 
     return slots

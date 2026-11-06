@@ -498,5 +498,44 @@ L.Db.AddScene("Mine")
 check(#SpeakEasyDB.scenes == accountCount, "account set untouched")
 L.Db.SetCharacterSet(false)
 check(L.Db.Set() == SpeakEasyDB, "back to the account set")
+L.Db.SetCharacterSet(true)
+check(L.Db.FindScene("mine") ~= nil, "going back to the character set finds it as it was left")
+L.Db.SetWheelSlot(1, 1, "greeting")
+L.Db.SetWheelIcon(1, 1, 132147)
+L.Db.Load()
+check(L.Db.UsesCharacterSet() and L.Db.WheelPages()[1].icons[1] == 132147, "the character set and its wheel survive a reload")
+L.Db.SetCharacterSet(false)
+L.Db.SetWheelSlot(1, 1, "greeting")
+check(L.Db.WheelPages() ~= SpeakEasyCharDB.wheelPages and L.Db.WheelPages()[1].icons[1] == nil, "a character's wheel icons stay off the account wheel")
+
+print("Wheel icons")
+L.Db.SetWheelSlot(1, 2, "emote:DANCE")
+L.Db.SetWheelIcon(1, 2, 136243)
+check(L.Db.WheelPages()[1].icons[2] == 136243, "a slot keeps the icon chosen for it")
+L.Db.SetWheelSlot(1, 2, "emote:DANCE")
+check(L.Db.WheelPages()[1].icons[2] == 136243, "setting the same slot value keeps its icon")
+L.Db.SetWheelSlot(1, 2, "emote:WAVE")
+check(L.Db.WheelPages()[1].icons[2] == nil, "changing what a slot holds drops its icon")
+L.Db.SetWheelIcon(1, 2, 136243)
+L.Db.SetWheelIcon(1, 2, nil)
+check(L.Db.WheelPages()[1].icons[2] == nil, "the usual icon can be put back")
+L.Db.SetWheelIcon(1, 99, 136243)
+L.Db.SetWheelIcon(99, 1, 136243)
+check(L.Db.WheelPages()[1].icons[99] == nil, "a slot or page that doesn't exist is ignored")
+L.Db.SetWheelPageCount(2)
+L.Db.SetWheelIcon(2, 1, 136243)
+check(L.Db.WheelPages()[2].icons[1] == 136243, "a page added later takes icons too")
+L.Db.SetWheelPageCount(1)
+
+SpeakEasyDB.wheelPages = {
+    { "greeting", "", "emote:DANCE", "tavern", icons = { 132147, 136243, "Interface\\Icons\\Spell_Fire", {} } },
+    { "greeting", icons = "junk" },
+    { "greeting" },
+}
+L.Db.Load()
+local cleanedPages = SpeakEasyDB.wheelPages
+check(cleanedPages[1].icons[1] == 132147 and cleanedPages[1].icons[3] == "Interface\\Icons\\Spell_Fire", "saved icons kept, by id or path")
+check(cleanedPages[1].icons[2] == nil and cleanedPages[1].icons[4] == nil, "icons on empty slots and of the wrong type dropped")
+check(type(cleanedPages[2].icons) == "table" and type(cleanedPages[3].icons) == "table", "pages with bad or no icons repaired, as from an older version")
 
 print(M.failures == 0 and "ALL PASSED" or (M.failures .. " FAILED"))

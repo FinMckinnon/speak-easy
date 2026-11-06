@@ -42,7 +42,8 @@ L.Text = {
     TITLE_EDIT_TRIGGER = "Edit trigger",
 
     -- Captions
-    CAPTION_SLOTS = "Choose what each direction plays: a scene, or a single emote.",
+    CAPTION_SLOTS = "Choose what each direction plays: a scene, or a single emote. "
+        .. "Click an icon to change it.",
     CAPTION_TRIGGER_LINES = "Outside instances the game only lets Say and Yell go out from a key press. "
         .. "So when a trigger plays a scene on Say or Yell there, its line waits for one. Emote, "
         .. "Party, Raid and Instance lines, and anything inside an instance, go out straight away.",
@@ -70,6 +71,8 @@ L.Text = {
     BUTTON_PREVIOUS = "Previous",
     BUTTON_NEXT = "Next",
     BUTTON_PREVIEW_WHEEL = "Preview",
+    BUTTON_SET_ACCOUNT = "Scenes and wheel: all characters",
+    BUTTON_SET_CHARACTER = "Scenes and wheel: %s only",
 
     -- Labels
     LABEL_CHANNEL = "Channel",
@@ -88,7 +91,6 @@ L.Text = {
     LABEL_TRIGGER_COOLDOWN = "Cooldown (seconds)",
     LABEL_MUTE = "Mute all triggers",
     LABEL_ANY_KEY = "Send trigger lines with my next key press",
-    LABEL_CHARACTER_SET = "This character uses its own scenes and triggers",
     LABEL_PRIME_TIMEOUT = "A waiting line is dropped after (seconds)",
     LABEL_GLOBAL_GAP = "Seconds between any two trigger lines",
     LABEL_TARGET_FALLBACK = "{targetName} with no target",
@@ -119,6 +121,11 @@ L.Text = {
     TOOLTIP_MINIMAP_UNMUTE = "Right click: unmute triggers",
     TOOLTIP_WHEEL_SETTINGS = "Wheel settings",
     TOOLTIP_ICON = "Change the icon",
+    TOOLTIP_SLOT_RESET = "Right click to go back to the usual icon",
+    TOOLTIP_SET_ACCOUNT = "Your characters share these scenes, this wheel and these triggers. "
+        .. "Click to give this character its own copy to change.",
+    TOOLTIP_SET_CHARACTER = "This character has its own scenes, wheel and triggers. "
+        .. "Click to go back to the shared ones. Its own are kept for later.",
 
     -- Emote wheel
     WHEEL_PAGE = "Page %d of %d",

@@ -130,6 +130,47 @@ icon:Fire("OnClick")
 Find(SpeakEasyIconPicker.obj, Labelled(L.Text.LABEL_ICON_SEARCH))[1]:Fire("OnEnterPressed", "132147")
 check(L.Db.FindScene("combat").icon == 132147, "an icon id typed in is used")
 
+print("Character set button")
+local function SetButton()
+    return Find(tabs, Shows(L.Db.UsesCharacterSet() and "Scenes and wheel: Aria only" or L.Text.BUTTON_SET_ACCOUNT))[1]
+end
+check(not SetButton(), "the button is not on the Scenes tab")
+tabs:SelectTab("settings")
+check(SetButton() and SetButton().type == "SpeakEasyButton", "the Settings tab's button says the set is shared")
+SetButton():Fire("OnEnter")
+check(GameTooltip.text == L.Text.TOOLTIP_SET_ACCOUNT, "hovering explains the shared set")
+SetButton():Fire("OnLeave")
+L.Db.SetWheelIcon(1, 1, 136243)
+local sharedScenes = #SpeakEasyDB.scenes
+L.Window.Open("scenes")
+Find(Detail(), OfType("Icon"))[1]:Fire("OnClick")
+local staleEditor = L.Editors.Line(L.Db.Set().scenes[1], 1)
+tabs:SelectTab("settings")
+SetButton():Fire("OnClick")
+check(L.Db.UsesCharacterSet() and SetButton() ~= nil, "clicking gives this character its own set, and says so")
+check(_G.SpeakEasyLineEditor == nil and _G.SpeakEasyIconPicker == nil, "editors holding the old set's scenes close")
+check(tabs.selected == "settings", "the Settings tab stays open")
+local mine = assert(L.Db.AddScene("Only Mine"))
+L.Db.SetWheelIcon(1, 1, 135432)
+check(#SpeakEasyDB.scenes == sharedScenes and SpeakEasyDB.wheelPages[1].icons[1] == 136243, "changes stay off the shared set")
+SetButton():Fire("OnEnter")
+check(GameTooltip.text == L.Text.TOOLTIP_SET_CHARACTER, "hovering explains the character set")
+SetButton():Fire("OnLeave")
+SetButton():Fire("OnClick")
+check(not L.Db.UsesCharacterSet() and SetButton() ~= nil and not L.Db.FindScene("Only Mine"),
+    "clicking again goes back to the shared set")
+check(L.Db.WheelPages()[1].icons[1] == 136243, "the shared wheel is as it was")
+SetButton():Fire("OnClick")
+check(L.Db.FindScene("Only Mine") ~= nil and L.Db.WheelPages()[1].icons[1] == 135432, "a character's own set is kept for later")
+tabs:SelectTab("scenes")
+check(#Find(tabs, Shows("Only Mine")) == 1, "the Scenes tab shows the character's own set")
+tabs:SelectTab("settings")
+SetButton():Fire("OnClick")
+L.Db.SetWheelIcon(1, 1, nil)
+tabs:SelectTab("scenes")
+check(#Find(tabs, Shows(L.Text.LABEL_ENABLED)) == 1, "the Scenes tab still builds on the shared set")
+Find(tabs, OfType("SpeakEasyRow"))[3]:Fire("OnClick")
+
 for _, tab in ipairs({ "wheel", "triggers", "settings", "scenes" }) do
     local ok, err = pcall(tabs.SelectTab, tabs, tab)
     check(ok, "tab " .. tab .. " builds " .. tostring(err or ""))
@@ -391,6 +432,66 @@ SpeakEasyDB.settings.wheelScale = 1
 pageSlider = Find(tabs, function(w) return w.type == "Slider" and w.label.text == L.Text.LABEL_WHEEL_PAGES end)[1]
 pageSlider:Fire("OnMouseUp", 1)
 check(#L.Db.WheelPages() == 1, "lowering the page count drops pages from the end")
+tabs:SelectTab("scenes")
+
+print("Wheel slot icons")
+tabs:SelectTab("wheel")
+local function SlotIcons() return Find(tabs, OfType("SpeakEasySlotIcon")) end
+L.Db.SetWheelSlot(1, 1, "hail")
+L.Db.SetWheelSlot(1, 3, "emote:DANCE")
+L.Db.SetWheelSlot(1, 2, nil)
+tabs:SelectTab("wheel")
+-- Compass order: top left, top, top right, left, right, bottom left, bottom, bottom right.
+local slotIcons = SlotIcons()
+local topIcon, topRightIcon, rightIcon = slotIcons[2], slotIcons[3], slotIcons[5]
+check(#slotIcons == 8, "each of the 8 slots has an icon box")
+check(topIcon.image.texture == hail.icon and rightIcon.image.texture == "Interface\\Icons\\Ability_Warrior_BattleShout",
+    "a box shows the slot's usual icon: its scene's, or the emote one")
+check(topRightIcon.image.texture == nil and topRightIcon.button.disabled, "an empty slot's box is disabled")
+topRightIcon:Fire("OnClick", "LeftButton")
+topRightIcon:Fire("OnEnter")
+check(_G.SpeakEasyIconPicker == nil, "an empty slot has no icon to change")
+
+rightIcon:Fire("OnClick", "LeftButton")
+check(SpeakEasyIconPicker ~= nil and SpeakEasyIconPicker.obj.title.text == "Icon: Dance", "clicking a box opens the picker for that slot")
+SpeakEasyIconGrid.buttons[2].scripts.OnClick(SpeakEasyIconGrid.buttons[2])
+local slotChoice = L.Compat.MacroIcons()[2]
+check(_G.SpeakEasyIconPicker == nil and L.Db.WheelPages()[1].icons[3] == slotChoice, "choosing an icon saves it for the slot")
+rightIcon = SlotIcons()[5]
+check(rightIcon.image.texture == slotChoice, "the box shows the chosen icon")
+
+topIcon = SlotIcons()[2]
+topIcon:Fire("OnClick", "LeftButton")
+SpeakEasyIconGrid.buttons[3].scripts.OnClick(SpeakEasyIconGrid.buttons[3])
+local hailIcon = hail.icon
+check(L.Db.WheelPages()[1].icons[1] == L.Compat.MacroIcons()[3] and hail.icon == hailIcon, "a scene's slot gets its own icon, the scene's stays")
+
+Hold(500, 500)
+local drawnIcons = {}
+for _, slice in ipairs({ SpeakEasyWheel:GetChildren() }) do
+    if slice.icon and slice.shown then drawnIcons[slice.icon.texture] = true end
+end
+check(drawnIcons[slotChoice] and drawnIcons[L.Compat.MacroIcons()[3]], "the wheel draws the slots' chosen icons")
+LetGo(505, 500)
+
+rightIcon = SlotIcons()[5]
+rightIcon:Fire("OnEnter")
+check(GameTooltip.text == L.Text.TOOLTIP_ICON, "hovering a box says what clicking does")
+rightIcon:Fire("OnLeave")
+rightIcon:Fire("OnClick", "RightButton")
+check(L.Db.WheelPages()[1].icons[3] == nil and rightIcon.image.texture == "Interface\\Icons\\Ability_Warrior_BattleShout",
+    "right click goes back to the usual icon")
+
+topIcon = SlotIcons()[2]
+OpenPicker(Find(tabs, Labelled("Top"))[1])
+Search("wave")
+Rows()[1].scripts.OnClick(Rows()[1])
+check(L.Db.WheelPages()[1].icons[1] == nil and topIcon.image.texture == "Interface\\Icons\\Ability_Warrior_BattleShout",
+    "choosing something else for a slot drops its icon and updates the box")
+OpenPicker(Find(tabs, Labelled("Top"))[1])
+Search("(empty)")
+Rows()[1].scripts.OnClick(Rows()[1])
+check(topIcon.image.texture == nil and topIcon.button.disabled, "emptying a slot empties its box")
 tabs:SelectTab("scenes")
 
 print("Key pickers")

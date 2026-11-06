@@ -104,7 +104,7 @@ Result: no line repeats back to back, and every line is used once per cycle.
 
 **Storage**
 
-- FR18: Scenes and triggers are account wide by default, with an optional per character override set, saved via SavedVariables so nothing is lost on /reload or logout.
+- FR18: Scenes, triggers and the wheel are account wide by default, with an optional per character override set, saved via SavedVariables so nothing is lost on /reload or logout. A button on the Settings tab shows which set is in use and switches between them. The first switch copies the account set; switching back keeps the character's set for later.
 
 **Triggers**
 
@@ -206,6 +206,7 @@ Hold a hotkey to open a radial wheel of scenes around the cursor; move the mouse
 - FR32: 1 to 9 pages, chosen with a slider. Scrolling the mouse wheel while holding the key turns the page, wrapping round.
 - FR33: A Wheel tab sets the key, the page count and the wheel size (0.5x to 2x), with a Preview button, and one sub tab per page laying out the 8 slot pickers as a compass around a ring picture.
 - FR34: Disabled scenes and scenes with no enabled lines show greyed and do nothing when chosen. A new scene goes in the first empty slot.
+- FR35: Each slot can show an icon of its own, in place of its scene's icon or the emote icon. Click the box beside the slot's picker to choose one and right click it for the usual icon. Changing what the slot holds drops the chosen icon, and a scene's own icon is left alone.
 
 **Feasibility**
 
@@ -263,9 +264,10 @@ SpeakEasyDB = {
             },
         },
     },
-    -- 1 to 9 pages of 8 slots: a scene id, "emote:<TOKEN>", or "" for empty
+    -- 1 to 9 pages of 8 slots: a scene id, "emote:<TOKEN>", or "" for empty,
+    -- and the icons chosen for any of them, by slot
     wheelPages = {
-        { "combat", "tavern", "emote:DANCE", "", "", "", "", "" },
+        { "combat", "tavern", "emote:DANCE", "", "", "", "", "", icons = { [3] = 132147 } },
     },
     triggers = {
         {
@@ -290,7 +292,7 @@ SpeakEasyDB = {
     },
 }
 
--- SavedVariablesPerCharacter: SpeakEasyCharDB = { useOwn = false, scenes = {...}, triggers = {...} }
+-- SavedVariablesPerCharacter: SpeakEasyCharDB = { useOwn = false, scenes = {...}, triggers = {...}, wheelPages = {...} }
 
 -- Runtime only, rebuilt on load (not saved)
 -- bags[sceneId] = { remaining = { lineIndex, ... }, last = lineIndex }

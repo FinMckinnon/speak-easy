@@ -228,11 +228,18 @@ local function CleanTrigger(trigger)
     }
 end
 
+-- input: a value
+-- output: the value as an icon file id or texture path, or nil
+-- Reads a stored icon safely.
+local function Icon(value)
+    return tonumber(value) or Text(value, 256)
+end
+
 -- input: a list of scenes
 -- output: a wheel page holding the first 8 of them
 -- Builds the first wheel page when none is stored.
 local function DefaultPage(scenes)
-    local page = {}
+    local page = { icons = {} }
     for slot = 1, L.Db.WHEEL_SLOTS do
         page[slot] = scenes[slot] and scenes[slot].id or ""
     end
@@ -242,15 +249,19 @@ end
 
 -- input: stored wheel pages and the set's scenes
 -- output: between 1 and MAX_WHEEL_PAGES pages of 8 slots, each a scene id,
---         an emote slot or "" for empty
+--         an emote slot or "" for empty, with the icons chosen for any slots
 -- Rebuilds the wheel pages from stored data.
 local function CleanPages(pages, scenes)
     local clean = {}
     for _, page in ipairs(type(pages) == "table" and pages or {}) do
         if type(page) == "table" and #clean < L.Db.MAX_WHEEL_PAGES then
-            local slots = {}
+            local slots = { icons = {} }
+            local icons = type(page.icons) == "table" and page.icons or {}
             for slot = 1, L.Db.WHEEL_SLOTS do
                 slots[slot] = Text(page[slot], 64) or ""
+                if slots[slot] ~= "" then
+                    slots.icons[slot] = Icon(icons[slot])
+                end
             end
 
             clean[#clean + 1] = slots
@@ -493,11 +504,25 @@ end
 
 -- input: a page number, a slot number, and a scene id, emote slot or nil to empty it
 -- output: nothing
--- Sets or empties one wheel slot.
+-- Sets or empties one wheel slot. An icon chosen for what it held goes with it.
 function L.Db.SetWheelSlot(pageIndex, slot, value)
     local page = L.Db.WheelPages()[pageIndex]
     if page and slot >= 1 and slot <= L.Db.WHEEL_SLOTS then
+        if page[slot] ~= (value or "") then
+            page.icons[slot] = nil
+        end
+
         page[slot] = value or ""
+    end
+end
+
+-- input: a page number, a slot number, and an icon or nil for the usual one
+-- output: nothing
+-- Chooses the icon one wheel slot shows, in place of its scene's or the emote one.
+function L.Db.SetWheelIcon(pageIndex, slot, icon)
+    local page = L.Db.WheelPages()[pageIndex]
+    if page and slot >= 1 and slot <= L.Db.WHEEL_SLOTS then
+        page.icons[slot] = icon
     end
 end
 
@@ -509,7 +534,7 @@ function L.Db.SetWheelPageCount(count)
     count = math.max(1, math.min(L.Db.MAX_WHEEL_PAGES, math.floor(count)))
 
     while #pages < count do
-        local page = {}
+        local page = { icons = {} }
         for slot = 1, L.Db.WHEEL_SLOTS do
             page[slot] = ""
         end

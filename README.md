@@ -16,7 +16,8 @@ SpeakEasy is a World of Warcraft addon that brings your character to life. Hold 
 
 ## What it does
 
-- **Emote wheel**: hold a key, point at a slot and let go. Each slot holds a scene or a single emote, and you can have up to 9 pages of 8.
+- **Emote wheel**: hold a key, point at a slot and let go. Each slot holds a scene or a single emote with any icon you like, and you can have up to 9 pages of 8.
+- **Per character sets**: share your scenes, wheel and triggers across every character, or click the button on the Settings tab to give one character its own, so nobody says something out of character.
 - **Scenes**: write a pool of lines for a situation, like Greeting, Combat, Tavern or your group's callouts, and choose the channel: Say, Yell, Emote, Party, Raid, Instance, or Auto.
 - **Lines that don't repeat**: every line in a scene gets said once before any comes round again, and never the same one twice in a row.
 - **Bar buttons**: drag a scene onto your action bar and pick any icon for it. Each press says the next line.

@@ -1270,3 +1270,75 @@ do
 
     AceGUI:RegisterWidgetType(Type, Constructor, Version)
 end
+
+-- Slot icon: the icon a wheel slot shows, sitting beside the slot's picker on
+-- the Wheel tab. Fires OnClick with the mouse button, and OnEnter and OnLeave.
+do
+    local Type, Version = "SpeakEasySlotIcon", 1
+    local SIZE = 26
+    -- The little gap left between the box and its picker.
+    local GAP = 2
+    -- The picker's height and alignment line, so the box is level with its field.
+    local HEIGHT = 44
+    local ALIGN = 26
+
+    local methods = {
+        -- input: nothing
+        -- output: nothing
+        -- Sets the fixed height and an empty box for a new use.
+        OnAcquire = function(self)
+            self:SetHeight(HEIGHT)
+            self:SetIcon(nil)
+        end,
+
+        -- input: an icon, or nil when the slot is empty
+        -- output: nothing
+        -- Shows the icon; an empty slot has none to change, so its box is disabled.
+        SetIcon = function(self, icon)
+            self.image:SetTexture(icon)
+            self.button:SetEnabled(icon ~= nil)
+            self.button:SetAlpha(icon and 1 or 0.4)
+        end,
+    }
+
+    -- input: nothing
+    -- output: the slot icon widget
+    -- Builds the box and wires up its clicks and hover.
+    local function Constructor()
+        local frame = CreateFrame("Frame", nil, UIParent)
+        frame:Hide()
+
+        local button = CreateFrame("Button", nil, frame, BACKDROP)
+        button:SetSize(SIZE, SIZE)
+        -- Held to the right, so it stays beside the picker at any width.
+        button:SetPoint("BOTTOMRIGHT", -GAP, 0)
+        button:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+        Surface(button, { 0, 0, 0, 0.35 }, COLOURS.cardEdge)
+        button:SetHighlightTexture("Interface\\Buttons\\ButtonHilight-Square", "ADD")
+
+        local image = button:CreateTexture(nil, "ARTWORK")
+        image:SetPoint("TOPLEFT", 1, -1)
+        image:SetPoint("BOTTOMRIGHT", -1, 1)
+        image:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+
+        local widget = { frame = frame, button = button, image = image, alignoffset = ALIGN, type = Type }
+        for name, fn in pairs(methods) do
+            widget[name] = fn
+        end
+
+        button:SetScript("OnClick", function(_, mouseButton)
+            AceGUI:ClearFocus()
+            widget:Fire("OnClick", mouseButton)
+        end)
+        button:SetScript("OnEnter", function()
+            widget:Fire("OnEnter")
+        end)
+        button:SetScript("OnLeave", function()
+            widget:Fire("OnLeave")
+        end)
+
+        return AceGUI:RegisterAsWidget(widget)
+    end
+
+    AceGUI:RegisterWidgetType(Type, Constructor, Version)
+end

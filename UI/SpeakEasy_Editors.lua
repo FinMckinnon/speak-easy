@@ -288,11 +288,10 @@ local function IconGrid()
     return grid
 end
 
--- input: a scene
+-- input: the name of what the icon is for, and a callback given the chosen icon
 -- output: the picker window
--- Opens a page of the game's icons; clicking one gives the scene that icon,
--- which its bar button picks up too.
-function L.Editors.Icon(scene)
+-- Opens a page of the game's icons; clicking one hands it to the callback.
+function L.Editors.Icon(name, onPick)
     -- A typed icon id or name works as well. Scroll over the icons, or use the
     -- buttons, to turn the page.
     if iconWindow then
@@ -306,7 +305,7 @@ function L.Editors.Icon(scene)
     end
 
     local frame = IconGrid()
-    local window = L.UI.Window(L.Text.TITLE_ICON:format(L.Util.Escape(scene.name)), 440, 440,
+    local window = L.UI.Window(L.Text.TITLE_ICON:format(L.Util.Escape(name)), 440, 440,
         "SpeakEasyIconPicker", nil, function()
             iconWindow = nil
             L.Compat.ReadIconNames(nil)
@@ -381,10 +380,9 @@ function L.Editors.Icon(scene)
 
     -- input: an icon file id
     -- output: nothing
-    -- Gives the scene that icon and closes the picker.
+    -- Hands over the icon and closes the picker.
     frame.onChoose = function(icon)
-        scene.icon = icon
-        L.Macro.Sync(scene)
+        onPick(icon)
         window:Hide()
         L.Window.Refresh()
     end

@@ -20,6 +20,10 @@ local LINE_LIST_CHROME = 262 + FOOTER_HEIGHT
 local MINIMAP_ICON = "Interface\\Icons\\INV_Misc_Note_01"
 -- The actions every line and trigger row offers.
 local ROW_ACTIONS = { { "edit", L.Text.BUTTON_EDIT }, { "delete", L.Text.BUTTON_DELETE, "danger" } }
+-- A slot's share of the Wheel tab's row, for its picker and its icon. Together
+-- they take a third, so three fit on a row and a fourth icon can't.
+local SLOT_PICKER_WIDTH = 0.29
+local SLOT_ICON_WIDTH = 0.04
 
 local window, tabs, dragLabel, dragButton, minimapButton
 local state = { scene = 1, tab = "wheel" }
@@ -151,7 +155,10 @@ local function BuildDetail(detail, scene, container)
     icon:SetWidth(34)
     icon:SetHeight(30)
     icon:SetCallback("OnClick", Safe(function()
-        L.Editors.Icon(scene)
+        L.Editors.Icon(scene.name, function(chosen)
+            scene.icon = chosen
+            L.Macro.Sync(scene)
+        end)
     end))
     icon:SetCallback("OnEnter", Safe(function(widget)
         GameTooltip:SetOwner(widget.frame, "ANCHOR_TOP")
@@ -339,9 +346,62 @@ local function SlotChoices()
     return list, order
 end
 
+-- input: a page number and a slot number
+-- output: the icon the slot shows, or nil when it is empty
+-- Reads a slot's icon as the wheel would show it.
+local function SlotTexture(pageIndex, slot)
+    local entry = L.Wheel.Slots(pageIndex)[slot]
+    return entry and entry.icon
+end
+
+-- input: a container, a page number and a slot number
+-- output: the slot's icon widget
+-- Adds the box showing a slot's icon: click to pick another, right click to
+-- go back to the usual one.
+local function SlotIcon(container, pageIndex, slot)
+    local widget = AceGUI:Create("SpeakEasySlotIcon")
+    widget:SetRelativeWidth(SLOT_ICON_WIDTH)
+    widget:SetIcon(SlotTexture(pageIndex, slot))
+    widget:SetCallback("OnClick", Safe(function(_, _, mouseButton)
+        local entry = L.Wheel.Slots(pageIndex)[slot]
+        if not entry then
+            return
+        end
+
+        if mouseButton == "RightButton" then
+            L.Db.SetWheelIcon(pageIndex, slot, nil)
+            widget:SetIcon(SlotTexture(pageIndex, slot))
+        else
+            L.Editors.Icon(entry.name, function(chosen)
+                L.Db.SetWheelIcon(pageIndex, slot, chosen)
+            end)
+        end
+    end))
+    widget:SetCallback("OnEnter", Safe(function()
+        if not L.Wheel.Slots(pageIndex)[slot] then
+            return
+        end
+
+        GameTooltip:SetOwner(widget.button, "ANCHOR_TOP")
+        GameTooltip:SetText(L.Text.TOOLTIP_ICON, 1, 1, 1)
+        if L.Db.WheelPages()[pageIndex].icons[slot] then
+            local quiet = L.Style.COLOURS.secondary
+            GameTooltip:AddLine(L.Text.TOOLTIP_SLOT_RESET, quiet[1], quiet[2], quiet[3], true)
+        end
+
+        GameTooltip:Show()
+    end))
+    widget:SetCallback("OnLeave", function()
+        GameTooltip:Hide()
+    end)
+    container:AddChild(widget)
+
+    return widget
+end
+
 -- input: a container and a page number
 -- output: nothing
--- Fills one page: a slot picker for each compass point around a ring picture.
+-- Fills one page: an icon and a picker for each compass point around a ring picture.
 local function BuildWheelPage(container, pageIndex)
     container:SetLayout("Flow")
     local page = L.Db.WheelPages()[pageIndex]
@@ -367,8 +427,10 @@ local function BuildWheelPage(container, pageIndex)
         else
             -- A slot naming a deleted scene shows as empty.
             local value = list[page[slot]] and page[slot] or ""
-            L.UI.Picker(container, L.Text["SLOT_" .. slot], value, Choices, 0.33, function(choice)
+            local icon = SlotIcon(container, pageIndex, slot)
+            L.UI.Picker(container, L.Text["SLOT_" .. slot], value, Choices, SLOT_PICKER_WIDTH, function(choice)
                 L.Db.SetWheelSlot(pageIndex, slot, choice ~= "" and choice or nil)
+                icon:SetIcon(SlotTexture(pageIndex, slot))
             end)
         end
     end
@@ -492,6 +554,31 @@ local function BuildTriggersTab(container)
     end)
 end
 
+-- input: a container
+-- output: nothing
+-- Adds the button that says which set is in use and switches to the other.
+local function BuildSetButton(container)
+    local text = L.Db.UsesCharacterSet() and L.Text.BUTTON_SET_CHARACTER:format(UnitName("player"))
+        or L.Text.BUTTON_SET_ACCOUNT
+    local button = L.UI.Button(container, text, 0.5, function()
+        -- An open editor holds a scene or trigger from the set being left.
+        L.Editors.CloseAll()
+        L.Db.SetCharacterSet(not L.Db.UsesCharacterSet())
+        state.scene, state.line, state.trigger, state.wheelPage = 1, nil, nil, 1
+        GameTooltip:Hide()
+        Refresh()
+    end)
+    button:SetCallback("OnEnter", Safe(function()
+        GameTooltip:SetOwner(button.frame, "ANCHOR_BOTTOM")
+        GameTooltip:SetText(L.Db.UsesCharacterSet() and L.Text.TOOLTIP_SET_CHARACTER or L.Text.TOOLTIP_SET_ACCOUNT,
+            1, 1, 1, 1, true)
+        GameTooltip:Show()
+    end))
+    button:SetCallback("OnLeave", function()
+        GameTooltip:Hide()
+    end)
+end
+
 -- input: the tab container
 -- output: nothing
 -- Fills the tab with hotkeys, then how trigger lines go out, then general options.
@@ -518,11 +605,8 @@ local function BuildSettingsTab(container)
     L.UI.Input(general, L.Text.LABEL_TARGET_FALLBACK, settings.targetFallback, 0.5, function(text)
         settings.targetFallback = strtrim(text)
     end)
-    L.UI.Toggle(general, L.Text.LABEL_CHARACTER_SET, L.Db.UsesCharacterSet(), nil, function(on)
-        L.Db.SetCharacterSet(on)
-        state.scene, state.line = 1, nil
-        Refresh()
-    end)
+    L.UI.Spacer(general, 0.48)
+    BuildSetButton(general)
 end
 
 -- input: nothing

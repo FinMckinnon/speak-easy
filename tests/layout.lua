@@ -281,10 +281,50 @@ tabs:SelectTab("scenes")
 View("Scenes tab", window)
 tabs:SelectTab("wheel")
 View("Wheel tab", window)
+
+-- Three boxes and pickers must share a row, or the compass falls apart.
+local slotPickers = M.Find(tabs, M.OfType("SpeakEasyPicker"))
+local slotBoxes = M.Find(tabs, M.OfType("SpeakEasySlotIcon"))
+check(#slotPickers == 8 and #slotBoxes == 8, "each slot has a box and a picker")
+local function RowOf(index) return F.Rect(slotPickers[index].frame)[4] end
+check(RowOf(1) == RowOf(2) and RowOf(2) == RowOf(3) and RowOf(4) == RowOf(5) and RowOf(6) == RowOf(7) and RowOf(7) == RowOf(8)
+    and RowOf(1) > RowOf(4) and RowOf(4) > RowOf(6), "the slots keep their compass of 3, 2 and 3")
+local boxesLevel = true
+for index, box in ipairs(slotBoxes) do
+    local field = F.Rect(slotPickers[index].field)
+    local rect = F.Rect(box.button)
+    if math.abs((field[2] + field[4]) / 2 - (rect[2] + rect[4]) / 2) > TOLERANCE then boxesLevel = false end
+end
+check(boxesLevel, "each box is level with its picker's field")
+local boxesClose = true
+for index, box in ipairs(slotBoxes) do
+    local gap = F.Rect(slotPickers[index].field)[1] - F.Rect(box.button)[3]
+    if gap < 0 or gap > 2 + TOLERANCE then boxesClose = false end
+end
+check(boxesClose, "each box sits right beside its picker")
+local function ColumnOf(index) return F.Rect(slotPickers[index].field)[1] end
+check(ColumnOf(1) == ColumnOf(4) and ColumnOf(4) == ColumnOf(6) and ColumnOf(2) == ColumnOf(7)
+    and ColumnOf(3) == ColumnOf(5) and ColumnOf(5) == ColumnOf(8), "the slots line up in columns")
+
 tabs:SelectTab("triggers")
 View("Triggers tab", window)
 tabs:SelectTab("settings")
 View("Settings tab", window)
+
+-- The set button's text changes with the character, so it is tried with the
+-- longest name the game allows.
+local realName = UnitName
+UnitName = function() return "Wwwwwwwwwwww" end
+local function SetButtonFits(text)
+    local button = M.Find(tabs, M.Shows(text))[1]
+    return button and button.text:GetStringWidth() <= button.frame:GetWidth() - 18
+end
+check(SetButtonFits(L.Text.BUTTON_SET_ACCOUNT), "the set button's text fits")
+M.Find(tabs, M.Shows(L.Text.BUTTON_SET_ACCOUNT))[1]:Fire("OnClick")
+local longName = L.Text.BUTTON_SET_CHARACTER:format(UnitName("player"))
+check(SetButtonFits(longName), "with a long character name too")
+M.Find(tabs, M.Shows(longName))[1]:Fire("OnClick")
+UnitName = realName
 check(not SpeakEasyDragButton.shown, "no drag button away from the Scenes tab")
 -- Back to scenes after the other tabs, so AceGUI hands out reused widgets,
 -- and on another scene, as a player clicking around would.
